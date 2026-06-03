@@ -1,0 +1,29 @@
+# Vivado-generated state
+*.jou
+*.log
+*.str
+*.pb
+*.wdb
+*.tmp
+*.backup.*
+
+# Build/output directories
+*.cache/
+*.hw/
+*.sim/
+*.srcs/
+*.runs/
+*.ip_user_files/
+ip_build_tmp/
+ip_build_tmp2/
+
+# Keep only the recreatable DDR IP source
+ip/*
+!ip/ddr4_sub64/
+ip/ddr4_sub64/*
+!ip/ddr4_sub64/ddr4_sub64.xci
+!ip/ddr4_sub64/ddr4_sub64_board.xdc
+
+# OS/editor noise
+Thumbs.db
+.DS_Store
