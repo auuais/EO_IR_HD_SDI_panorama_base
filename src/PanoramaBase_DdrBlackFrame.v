@@ -101,8 +101,10 @@ module PanoramaBase_DdrBlackFrame(
     // as in the live path.  Clean diagonal ramp on screen  => the whole DDR
     // pipeline is correct and the live fault is the BRAM/camera data.  Garbled
     // or green/underflow => the fault is in the write/DDR/scan/render path.
-    // Set back to 0 for live IR.
-    localparam         PATTERN_TEST  = 1'b0;
+    // Set back to 0 for live IR.  When 1, the copy is also self-triggered every
+    // display frame (camera-independent) so the DDR write/scan/render path is
+    // exercised with a known ramp regardless of which IR camera is connected.
+    localparam         PATTERN_TEST  = 1'b1;
 
     //------------------------------------------------------------------------
     // Power-on reset for the MIG (free-running clk_for_por)
@@ -551,7 +553,11 @@ module PanoramaBase_DdrBlackFrame(
                 // but an already-running copy is NEVER aborted by a mode change
                 // (that teardown was the old "committed-then-lost / cyan" bug).
                 //------------------------------------------------------------
-                if (sel_pulse && !copy_active && ir_single_ui) begin
+                // PATTERN_TEST: self-trigger one copy per display frame so the DDR
+                // write/scan/render path is exercised with a known ramp even with no
+                // camera on the forced slot.  Live mode triggers on the camera pulse.
+                if ((( PATTERN_TEST && frame_edge) ||
+                     (!PATTERN_TEST && sel_pulse && ir_single_ui)) && !copy_active) begin
                     copy_active      <= 1'b1;
                     wr_addr          <= wr_bank_base;
                     fb_rd_addr       <= 19'd0;
