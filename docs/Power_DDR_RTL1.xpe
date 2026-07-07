@@ -1,0 +1,754 @@
+<?xml version="1.0"?>
+<POWERDATA author="Vivado Power Analysis" dataVersion="2025.2" design="KintexTop_EO_IR_HD_SDI_panorama_base" designState="routed" date="Sun Jun 14 18:58:45 2026" pwrOpt="BRAMPwropt" activityLevel="vectorless">
+	<ENVIRONMENT>
+		<DEVICE part="xcku15p" grade="industrial" package="ffve1517" speed="-2" process="typical" vid="No">
+		</DEVICE>
+		<VOLTAGESOURCES>
+			<SOURCE name="Vcco33" voltage="3.300000" icc="0.009109" iccq="0.006865" power="0.052713">
+			</SOURCE>
+			<SOURCE name="Vcco18" voltage="1.800000" icc="0.006276" iccq="0.000021" power="0.011335">
+			</SOURCE>
+			<SOURCE name="Vcco12" voltage="1.200000" icc="0.085443" iccq="0.000021" power="0.102557">
+			</SOURCE>
+			<SOURCE name="Vccbram" voltage="0.850000" icc="0.000308" iccq="0.004174" power="0.003810">
+			</SOURCE>
+			<SOURCE name="Vccint" voltage="0.850000" icc="0.158485" iccq="0.308278" power="0.396748">
+			</SOURCE>
+			<SOURCE name="Vccaux" voltage="1.800000" icc="0.108151" iccq="0.337402" power="0.801997">
+			</SOURCE>
+			<SOURCE name="Vccint_io" voltage="0.850000" icc="0.150739" iccq="0.096324" power="0.210004">
+			</SOURCE>
+			<SOURCE name="Vccaux_io" voltage="1.800000" icc="0.156498" iccq="0.072810" power="0.412754">
+			</SOURCE>
+			<SOURCE name="Vccadc" voltage="1.800000" icc="0.000000" iccq="0.008000" power="0.014400">
+			</SOURCE>
+		</VOLTAGESOURCES>
+		<THERMAL>
+			<AMBIENT value="25.000000">
+			</AMBIENT>
+			<AIRFLOW value="250.000000">
+			</AIRFLOW>
+			<HEATSINK value="medium (Medium Profile)">
+			</HEATSINK>
+			<BOARDSELECTION value="medium (10&quot;x10&quot;)">
+			</BOARDSELECTION>
+			<BOARDLAYERS value="12to15 (12 to 15 Layers)">
+			</BOARDLAYERS>
+			<TSA value="1.175000">
+			</TSA>
+			<TJB value="1.755600">
+			</TJB>
+			<BOARDTEMP value="25.0 (C)">
+			</BOARDTEMP>
+			<JUNCTION value="26.6 (C)">
+			</JUNCTION>
+		</THERMAL>
+	</ENVIRONMENT>
+	<BLOCKDETAILS>
+		<BYTYPE>
+			<BLOCKTYPE name="Clocks">
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/mmcm_clkout0" freq="105.924721" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000004" enableRate="1" bufType="MMCM" clkSrcName="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" freq="105.924721" belFanout="17889" sliceFanout="2577" FoPerSite="6.941793" sliceEnableRate="0.695702" leafs="97.000000" hrows="0.000000" power="0.054106" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="CAM0_PCLK" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000">
+				</CLOCK>
+				<CLOCK name="HD_PCLK" freq="100.000000" belFanout="0" sliceFanout="0" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_cam0_pclk_ibuf/O" freq="100.000000" belFanout="2" sliceFanout="2" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000007" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_cam0_pclk_ibuf/OUT" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_i2c/HD_PCLK_OBUF" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000003" enableRate="1" bufType="luts">
+				</CLOCK>
+				<CLOCK name="u_i2c/eo_sel_pclk_mux" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000003" enableRate="1" bufType="luts">
+				</CLOCK>
+				<CLOCK name="u_i2c/u_eo_sel_pclk_bufg_i_2_n_0" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000003" enableRate="1" bufType="luts">
+				</CLOCK>
+				<CLOCK name="xlnx_opt_" freq="100.000000" belFanout="1333" sliceFanout="271" FoPerSite="4.918819" sliceEnableRate="0.170114" leafs="42.000000" hrows="0.000000" power="0.007144" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" freq="52.962360" belFanout="1722" sliceFanout="415" FoPerSite="4.149398" sliceEnableRate="0.633207" leafs="42.000000" hrows="0.000000" power="0.004613" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/mmcm_clkout6" freq="52.962360" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000002" enableRate="1" bufType="MMCM" clkSrcName="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst">
+				</CLOCK>
+				<CLOCK name="CAM1_PCLK" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000">
+				</CLOCK>
+				<CLOCK name="eo1_pclk_BUFG" freq="100.000000" belFanout="46" sliceFanout="14" FoPerSite="3.285714" sliceEnableRate="0.858696" leafs="6.000000" hrows="0.000000" power="0.001912" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_eo1/U_cam1_pclk_ibuf/O" freq="100.000000" belFanout="2" sliceFanout="2" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000007" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_eo1/U_cam1_pclk_ibuf/OUT" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="CAM3_PCLK" freq="74.250072" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000">
+				</CLOCK>
+				<CLOCK name="eo3_pclk_BUFG" freq="74.250072" belFanout="46" sliceFanout="12" FoPerSite="3.833333" sliceEnableRate="0.858696" leafs="5.000000" hrows="0.000000" power="0.001607" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_eo3/U_cam3_pclk_ibuf/O" freq="74.250072" belFanout="2" sliceFanout="2" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000005" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_eo3/U_cam3_pclk_ibuf/OUT" freq="74.250072" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="CAM2_PCLK" freq="74.250072" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000">
+				</CLOCK>
+				<CLOCK name="eo2_pclk_BUFG" freq="74.250072" belFanout="46" sliceFanout="13" FoPerSite="3.538462" sliceEnableRate="0.858696" leafs="4.000000" hrows="0.000000" power="0.001345" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_eo2/U_cam2_pclk_ibuf/O" freq="74.250072" belFanout="2" sliceFanout="2" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000005" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_eo2/U_cam2_pclk_ibuf/OUT" freq="74.250072" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="CAM5_PCLK" freq="74.250072" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000">
+				</CLOCK>
+				<CLOCK name="eo5_pclk_BUFG" freq="74.250072" belFanout="46" sliceFanout="11" FoPerSite="4.181818" sliceEnableRate="0.858696" leafs="7.000000" hrows="0.000000" power="0.000888" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_eo5/U_cam5_pclk_ibuf/O" freq="74.250072" belFanout="2" sliceFanout="2" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000005" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_eo5/U_cam5_pclk_ibuf/OUT" freq="74.250072" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="IRCAM0_PCLK" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000">
+				</CLOCK>
+				<CLOCK name="IRCAM0_PCLK_IBUF_BUFG" freq="100.000000" belFanout="21" sliceFanout="4" FoPerSite="5.250000" sliceEnableRate="0.236607" leafs="2.000000" hrows="0.000000" power="0.000835" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="IRCAM0_PCLK_IBUF_inst/O" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000003" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="IRCAM0_PCLK_IBUF_inst/OUT" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="CAM4_PCLK" freq="74.250072" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000">
+				</CLOCK>
+				<CLOCK name="eo4_pclk_BUFG" freq="74.250072" belFanout="46" sliceFanout="9" FoPerSite="5.111111" sliceEnableRate="0.858696" leafs="5.000000" hrows="0.000000" power="0.000795" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_eo4/U_cam4_pclk_ibuf/O" freq="74.250072" belFanout="2" sliceFanout="2" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000005" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_eo4/U_cam4_pclk_ibuf/OUT" freq="74.250072" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="IRCAM1_PCLK" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000">
+				</CLOCK>
+				<CLOCK name="IRCAM1_PCLK_IBUF_BUFG" freq="100.000000" belFanout="21" sliceFanout="4" FoPerSite="5.250000" sliceEnableRate="0.236607" leafs="2.000000" hrows="0.000000" power="0.000779" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="IRCAM1_PCLK_IBUF_inst/O" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000003" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="IRCAM1_PCLK_IBUF_inst/OUT" freq="100.000000" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_switch/m_bscan_drck[0]" freq="20.000000" belFanout="0" sliceFanout="0" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000000" enableRate="1" bufType="luts">
+				</CLOCK>
+				<CLOCK name="dbg_hub/inst/BSCANID.u_xsdbm_id/itck_i" freq="20.000000" belFanout="478" sliceFanout="86" FoPerSite="5.558140" sliceEnableRate="0.612629" leafs="14.000000" hrows="0.000000" power="0.000754" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/dbg_clk" freq="26.481179" belFanout="568" sliceFanout="93" FoPerSite="6.107527" sliceEnableRate="0.848218" leafs="10.000000" hrows="0.000000" power="0.000667" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/mmcm_clkout5" freq="26.481179" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000001" enableRate="1" bufType="MMCM" clkSrcName="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst">
+				</CLOCK>
+				<CLOCK name="c0_sys_clk_p" freq="70.616481" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000002">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/sys_clk_in_bufg" freq="70.616481" belFanout="17" sliceFanout="7" FoPerSite="2.428571" sliceEnableRate="1.000000" leafs="5.000000" hrows="0.000000" power="0.000645" enableRate="1" bufType="BUFG">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/O" freq="70.616481" belFanout="2" sliceFanout="2" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000005" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/OUT" freq="70.616481" belFanout="1" sliceFanout="1" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000002" enableRate="1" bufType="I/O">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[0]" freq="847.397771" belFanout="8" sliceFanout="8" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000228" enableRate="1" bufType="PLL" clkSrcName="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/plle_loop[0].gen_plle4.PLLE4_BASE_INST_OTHER">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[2]" freq="847.397771" belFanout="8" sliceFanout="8" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000228" enableRate="1" bufType="PLL" clkSrcName="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/plle_loop[2].gen_plle4.PLLE4_BASE_INST_OTHER">
+				</CLOCK>
+				<CLOCK name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" freq="847.397771" belFanout="6" sliceFanout="6" FoPerSite="1.000000" sliceEnableRate="0.000000" leafs="0.000000" hrows="0.000000" power="0.000171" enableRate="1" bufType="PLL" clkSrcName="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/plle_loop[1].gen_plle4.PLLE4_BASE_INST_OTHER">
+				</CLOCK>
+			</BLOCKTYPE>
+			<BLOCKTYPE name="LOGIC">
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="20.000000" clockFreq2="20.000000" toggleRate="5.116055" toggleRate2="13.201184" totalRate="1170.881978" name="dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/INTERNAL_TCK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/dbg_hub" writeRate="0.000000" enableRate="0.000000" fanout="4.730435" ru="6.109639" fanout2="5.785714" totalFanout="544.000000" fanoutRate="116.902806" numNets="315" extNets="115" carry8s="1" luts="255" logicCap="74089095" signalCap="30755.246624" power="0.000043" sp="0.000006">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="26.481179" clockFreq2="26.481179" toggleRate="12.715703" toggleRate2="19.806674" totalRate="2899.803387" name="mmcm_clkout5" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/dbg_hub" writeRate="0.000000" enableRate="0.000000" fanout="4.174419" ru="8.293482" fanout2="4.363636" totalFanout="359.000000" fanoutRate="489.736263" numNets="241" extNets="86" carry8s="6" luts="156" logicCap="58801829" signalCap="17573.284374" power="0.000085" sp="0.000026">
+				</LOGIC>
+				<LOGIC clock="dbg_hub/inst/BSCANID.u_xsdbm_id/itck_i" clockFreq="20.000000" clockFreq2="20.000000" toggleRate="54.954801" toggleRate2="12.500000" totalRate="25.000000" name="dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/INTERNAL_TCK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/dbg_hub" writeRate="0.000000" enableRate="0.000000" fanout="1.000000" ru="0.824036" fanout2="1.000000" totalFanout="16.000000" fanoutRate="1.655074" numNets="20" extNets="16" RAM="10" logicCap="12725756" signalCap="255.406372" power="0.000030" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/dbg_clk" clockFreq="26.481179" clockFreq2="26.481179" toggleRate="59.440458" toggleRate2="5.521908" totalRate="5.523170" name="mmcm_clkout5" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/dbg_hub" writeRate="0.412878" enableRate="0.000000" fanout="1.000000" ru="0.283136" fanout2="1.000000" totalFanout="16.000000" fanoutRate="0.731300" numNets="20" extNets="16" RAM="10" logicCap="15207885" signalCap="1888.822739" power="0.000043" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="dbg_hub/inst/BSCANID.u_xsdbm_id/itck_i" clockFreq="20.000000" clockFreq2="20.000000" toggleRate="3.141445" toggleRate2="11.808993" totalRate="1435.640414" name="dbg_hub/inst/BSCANID.u_xsdbm_id/SWITCH_N_EXT_BSCAN.bscan_inst/SERIES7_BSCAN.bscan_inst/INTERNAL_TCK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/dbg_hub" writeRate="0.000000" enableRate="0.638592" fanout="3.246120" ru="10.341723" fanout2="3.271186" totalFanout="1464.000000" fanoutRate="399.431233" numNets="457" extNets="451" ffs="457" logicCap="9347840" signalCap="62393.838139" power="0.000007" sp="0.000028">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/dbg_clk" clockFreq="26.481179" clockFreq2="26.481179" toggleRate="6.027105" toggleRate2="14.258370" totalRate="1687.589542" name="mmcm_clkout5" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/dbg_hub" writeRate="0.000000" enableRate="0.833389" fanout="3.686347" ru="10.781301" fanout2="4.192982" totalFanout="999.000000" fanoutRate="970.046924" numNets="280" extNets="271" ffs="280" logicCap="9347840" signalCap="48683.367676" power="0.000011" sp="0.000051">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="105.924721" clockFreq2="0.000000" toggleRate="0.000000" toggleRate2="0.000000" totalRate="0.000000" name="High_Fanout_Nets" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/dbg_hub" writeRate="0.000000" enableRate="0.500000" fanout="78.750000" ru="21.746412" fanout2="0.000000" totalFanout="315.000000" fanoutRate="0.000000" numNets="4" extNets="4" ffs="4" logicCap="0" signalCap="0.000000" power="0.000000" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="12.116874" toggleRate2="11.845679" totalRate="2307.376933" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.000000" fanout="2.529915" ru="6.283655" fanout2="2.346667" totalFanout="296.000000" fanoutRate="589.942211" numNets="247" extNets="117" carry8s="5" luts="164" logicCap="83724985" signalCap="25611.291782" power="0.000339" sp="0.000039">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="7.595358" toggleRate2="13.515910" totalRate="394.649837" name="IRCAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.000000" fanout="5.000000" ru="9.181970" fanout2="5.500000" totalFanout="45.000000" fanoutRate="222.039755" numNets="30" extNets="9" carry8s="3" luts="9" logicCap="5634783" signalCap="1785.985657" power="0.000016" sp="0.000006">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="7.781964" toggleRate2="13.515910" totalRate="393.939641" name="IRCAM1_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.000000" fanout="5.000000" ru="8.470904" fanout2="5.500000" totalFanout="45.000000" fanoutRate="216.338243" numNets="30" extNets="9" carry8s="3" luts="9" logicCap="5658828" signalCap="1532.679878" power="0.000016" sp="0.000004">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="70.616481" clockFreq2="70.616481" toggleRate="47.631732" toggleRate2="21.233855" totalRate="302.181802" name="c0_sys_clk_p" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.000000" fanout="2.250000" ru="3.663610" fanout2="2.142857" totalFanout="18.000000" fanoutRate="46.096299" numNets="15" extNets="8" luts="10" logicCap="5939924" signalCap="5919.969467" power="0.000057" sp="0.000003">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="105.924721" clockFreq2="105.924721" toggleRate="2.782837" toggleRate2="10.600238" totalRate="37696.285842" name="mmcm_clkout0" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.000000" fanout="2.768687" ru="8.164229" fanout2="2.583668" totalFanout="17631.000000" fanoutRate="21034.296464" numNets="15024" extNets="6368" SMUX="282" carry8s="39" luts="10744" logicCap="2828723149" signalCap="1902347.343235" power="0.005486" sp="0.001673">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="26.481179" clockFreq2="26.481179" toggleRate="7.356962" toggleRate2="11.963626" totalRate="705.959122" name="mmcm_clkout5" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.000000" fanout="2.096154" ru="9.300171" fanout2="1.025641" totalFanout="109.000000" fanoutRate="63.130838" numNets="89" extNets="52" luts="78" logicCap="36920997" signalCap="6020.677834" power="0.000028" sp="0.000007">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="52.962360" clockFreq2="52.962360" toggleRate="9.994000" toggleRate2="15.038377" totalRate="23729.122053" name="mmcm_clkout6" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.000000" fanout="2.877871" ru="9.293175" fanout2="2.823802" totalFanout="2757.000000" fanoutRate="6993.074802" numNets="1961" extNets="958" SMUX="110" carry8s="19" luts="1500" logicCap="788736477" signalCap="378051.951447" power="0.001458" sp="0.000745">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" clockFreq2="105.924721" toggleRate="18.101708" toggleRate2="0.000000" totalRate="0.002424" name="mmcm_clkout0" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="1.000000" fanout="0.000000" ru="0.000000" fanout2="0.000000" totalFanout="0.000000" fanoutRate="0.000000" numNets="4" extNets="0" SRL="4" logicCap="3515294" signalCap="0.000000" power="0.000025" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clockFreq="52.962360" clockFreq2="52.962360" toggleRate="7.775767" toggleRate2="0.438769" totalRate="25.736379" name="mmcm_clkout6" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.170963" fanout="1.000000" ru="1.267929" fanout2="1.000000" totalFanout="76.000000" fanoutRate="6.813329" numNets="82" extNets="76" SRL="47" logicCap="78204786" signalCap="12856.732613" power="0.000066" sp="0.000001">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" clockFreq2="105.924721" toggleRate="56.254997" toggleRate2="9.959943" totalRate="5190.324791" name="mmcm_clkout0" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.487664" enableRate="0.000000" fanout="1.036053" ru="2.433714" fanout2="1.030769" totalFanout="546.000000" fanoutRate="2760.395426" numNets="1499" extNets="527" RAM="752" logicCap="588079326" signalCap="133878.579731" power="0.012293" sp="0.000484">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clockFreq="52.962360" clockFreq2="52.962360" toggleRate="23.746017" toggleRate2="14.636409" totalRate="1873.460340" name="mmcm_clkout6" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.008350" enableRate="0.000000" fanout="1.000000" ru="7.913777" fanout2="1.000000" totalFanout="96.000000" fanoutRate="373.077537" numNets="128" extNets="96" RAM="64" logicCap="95373298" signalCap="17597.528847" power="0.000217" sp="0.000051">
+				</LOGIC>
+				<LOGIC clock="xlnx_opt_" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="6.526154" toggleRate2="10.404711" totalRate="1259.547740" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.735569" fanout="4.487047" ru="12.353191" fanout2="4.842975" totalFanout="866.000000" fanoutRate="4127.184073" numNets="193" extNets="193" ffs="193" logicCap="8859520" signalCap="84227.265923" power="0.000032" sp="0.000261">
+				</LOGIC>
+				<LOGIC clock="IRCAM0_PCLK_IBUF_BUFG" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="8.180978" toggleRate2="8.180978" totalRate="171.800538" name="IRCAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.236607" fanout="2.285714" ru="9.496223" fanout2="2.285714" totalFanout="48.000000" fanoutRate="191.899598" numNets="21" extNets="21" ffs="21" logicCap="1464960" signalCap="4893.067375" power="0.000004" sp="0.000019">
+				</LOGIC>
+				<LOGIC clock="IRCAM1_PCLK_IBUF_BUFG" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="8.180978" toggleRate2="8.180978" totalRate="171.800538" name="IRCAM1_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.236607" fanout="2.285714" ru="10.182248" fanout2="2.285714" totalFanout="48.000000" fanoutRate="191.899598" numNets="21" extNets="21" ffs="21" logicCap="1464960" signalCap="5496.498367" power="0.000004" sp="0.000019">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/sys_clk_in_bufg" clockFreq="70.616481" clockFreq2="70.616481" toggleRate="15.662205" toggleRate2="24.205226" totalRate="266.257488" name="c0_sys_clk_p" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="1.000000" fanout="3.176471" ru="10.000000" fanout2="4.090909" totalFanout="54.000000" fanoutRate="505.428406" numNets="17" extNets="17" ffs="17" logicCap="767360" signalCap="5167.707321" power="0.000005" sp="0.000032">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" clockFreq2="105.924721" toggleRate="1.697987" toggleRate2="7.086395" totalRate="27225.529300" name="mmcm_clkout0" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.764789" fanout="2.363487" ru="10.370081" fanout2="1.900987" totalFanout="37284.000000" fanoutRate="31974.045688" numNets="16034" extNets="15775" ffs="16034" logicCap="282458246" signalCap="5788044.829517" power="0.000727" sp="0.007753">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/dbg_clk" clockFreq="26.481179" clockFreq2="26.481179" toggleRate="7.318523" toggleRate2="11.080534" totalRate="1939.408463" name="mmcm_clkout5" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.933731" fanout="1.579767" ru="8.832147" fanout2="1.773810" totalFanout="406.000000" fanoutRate="462.941266" numNets="265" extNets="257" ffs="265" logicCap="12347520" signalCap="43868.979286" power="0.000013" sp="0.000042">
+				</LOGIC>
+				<LOGIC clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clockFreq="52.962360" clockFreq2="52.962360" toggleRate="6.555281" toggleRate2="10.862693" totalRate="8974.180305" name="mmcm_clkout6" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.736836" fanout="2.590212" ru="10.957537" fanout2="3.173544" totalFanout="3546.000000" fanoutRate="5747.357105" numNets="1369" extNets="1369" ffs="1369" logicCap="67039361" signalCap="567482.771839" power="0.000120" sp="0.000686">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="105.924721" clockFreq2="0.000000" toggleRate="0.000000" toggleRate2="0.000000" totalRate="0.000000" name="Unassigned_Clock" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.000000" enableRate="0.000000" fanout="1.571429" ru="8.346326" fanout2="0.000000" totalFanout="11.000000" fanoutRate="0.000000" numNets="9" extNets="7" luts="6" logicCap="0" signalCap="0.000000" power="0.000000" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="105.924721" clockFreq2="10.761898" toggleRate="3.101953" toggleRate2="21.612636" totalRate="2976.607713" name="High_Fanout_Nets" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame" writeRate="0.999982" enableRate="0.827202" fanout="89.825427" ru="22.682318" fanout2="77.445255" totalFanout="47338.000000" fanoutRate="90843.509446" numNets="527" extNets="527" RAM="5" carry8s="7" ffs="320" luts="129" logicCap="62786066" signalCap="3752180.092300" power="0.000206" sp="0.004727">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="12.681568" toggleRate2="18.862483" totalRate="361.375648" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo0" writeRate="0.000000" enableRate="0.000000" fanout="2.846154" ru="5.010897" fanout2="1.000000" totalFanout="37.000000" fanoutRate="14.936627" numNets="26" extNets="13" carry8s="2" luts="12" logicCap="7455195" signalCap="1819.776150" power="0.000029" sp="0.000001">
+				</LOGIC>
+				<LOGIC clock="xlnx_opt_" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="12.594314" toggleRate2="13.166782" totalRate="579.338422" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo0" writeRate="0.000000" enableRate="0.858696" fanout="1.869565" ru="9.305282" fanout2="1.840909" totalFanout="86.000000" fanoutRate="554.338422" numNets="46" extNets="46" ffs="46" logicCap="3069440" signalCap="9728.789108" power="0.000015" sp="0.000045">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="2.201129" toggleRate2="3.700844" totalRate="3.774397" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo1" writeRate="0.000000" enableRate="0.000000" fanout="0.000000" ru="0.000000" fanout2="0.000000" totalFanout="0.000000" fanoutRate="0.000000" numNets="1" extNets="0" luts="1" logicCap="357807" signalCap="0.000000" power="0.000000" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="14.626902" toggleRate2="18.451010" totalRate="371.148206" name="CAM1_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo1" writeRate="0.000000" enableRate="0.000000" fanout="3.000000" ru="4.807140" fanout2="1.000000" totalFanout="36.000000" fanoutRate="19.822912" numNets="25" extNets="12" carry8s="2" luts="11" logicCap="7220481" signalCap="1768.270576" power="0.000033" sp="0.000001">
+				</LOGIC>
+				<LOGIC clock="eo1_pclk_BUFG" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="12.594314" toggleRate2="13.166782" totalRate="579.338422" name="CAM1_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo1" writeRate="0.000000" enableRate="0.858696" fanout="1.869565" ru="9.360327" fanout2="1.840909" totalFanout="86.000000" fanoutRate="554.338422" numNets="46" extNets="46" ffs="46" logicCap="3069440" signalCap="10431.465405" power="0.000015" sp="0.000051">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="2.028527" toggleRate2="0.000000" totalRate="0.000000" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo2" writeRate="0.000000" enableRate="0.000000" fanout="1.000000" ru="0.208984" fanout2="0.000000" totalFanout="2.000000" fanoutRate="0.000000" numNets="2" extNets="2" luts="2" logicCap="894624" signalCap="0.000000" power="0.000001" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="74.250072" clockFreq2="74.250072" toggleRate="11.058842" toggleRate2="15.757823" totalRate="382.216415" name="CAM2_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo2" writeRate="0.000000" enableRate="0.000000" fanout="2.388889" ru="5.170393" fanout2="1.000000" totalFanout="43.000000" fanoutRate="21.776367" numNets="31" extNets="18" carry8s="2" luts="17" logicCap="9769533" signalCap="2988.416897" power="0.000027" sp="0.000001">
+				</LOGIC>
+				<LOGIC clock="eo2_pclk_BUFG" clockFreq="74.250072" clockFreq2="74.250072" toggleRate="12.592803" toggleRate2="13.165204" totalRate="579.268973" name="CAM2_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo2" writeRate="0.000000" enableRate="0.858696" fanout="2.391304" ru="10.184834" fanout2="2.386364" totalFanout="110.000000" fanoutRate="522.920220" numNets="46" extNets="46" ffs="46" logicCap="3069440" signalCap="12511.663277" power="0.000011" sp="0.000045">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="2.628216" toggleRate2="2.757417" totalRate="2.829299" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo3" writeRate="0.000000" enableRate="0.000000" fanout="0.000000" ru="0.000000" fanout2="0.000000" totalFanout="0.000000" fanoutRate="0.000000" numNets="1" extNets="0" luts="1" logicCap="352085" signalCap="0.000000" power="0.000000" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="74.250072" clockFreq2="74.250072" toggleRate="13.327506" toggleRate2="18.451010" totalRate="373.973501" name="CAM3_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo3" writeRate="0.000000" enableRate="0.000000" fanout="3.000000" ru="5.359162" fanout2="1.000000" totalFanout="36.000000" fanoutRate="15.767406" numNets="25" extNets="12" carry8s="2" luts="11" logicCap="6446128" signalCap="1632.164185" power="0.000019" sp="0.000001">
+				</LOGIC>
+				<LOGIC clock="eo3_pclk_BUFG" clockFreq="74.250072" clockFreq2="74.250072" toggleRate="12.594313" toggleRate2="13.166782" totalRate="579.338422" name="CAM3_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo3" writeRate="0.000000" enableRate="0.858696" fanout="1.869565" ru="9.573782" fanout2="1.840909" totalFanout="86.000000" fanoutRate="411.596678" numNets="46" extNets="46" ffs="46" logicCap="3069440" signalCap="10796.580498" power="0.000011" sp="0.000039">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="2.976771" toggleRate2="0.000000" totalRate="0.000000" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo4" writeRate="0.000000" enableRate="0.000000" fanout="1.000000" ru="0.143497" fanout2="0.000000" totalFanout="1.000000" fanoutRate="0.000000" numNets="1" extNets="1" luts="1" logicCap="605357" signalCap="0.000000" power="0.000001" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="74.250072" clockFreq2="74.250072" toggleRate="14.872102" toggleRate2="18.862483" totalRate="361.403542" name="CAM4_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo4" writeRate="0.000000" enableRate="0.000000" fanout="3.181818" ru="5.159062" fanout2="1.000000" totalFanout="35.000000" fanoutRate="11.100823" numNets="24" extNets="11" carry8s="2" luts="10" logicCap="6581755" signalCap="1886.650246" power="0.000021" sp="0.000001">
+				</LOGIC>
+				<LOGIC clock="eo4_pclk_BUFG" clockFreq="74.250072" clockFreq2="74.250072" toggleRate="12.594313" toggleRate2="13.166782" totalRate="579.338422" name="CAM4_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo4" writeRate="0.000000" enableRate="0.858696" fanout="1.869565" ru="9.584185" fanout2="1.840909" totalFanout="86.000000" fanoutRate="411.596678" numNets="46" extNets="46" ffs="46" logicCap="3069440" signalCap="11344.346603" power="0.000011" sp="0.000040">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="3.677831" toggleRate2="2.773312" totalRate="2.828568" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo5" writeRate="0.000000" enableRate="0.000000" fanout="1.000000" ru="5.194681" fanout2="1.000000" totalFanout="1.000000" fanoutRate="1.414284" numNets="1" extNets="1" luts="1" logicCap="522702" signalCap="96.286026" power="0.000001" sp="0.000000">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="74.250072" clockFreq2="74.250072" toggleRate="14.965809" toggleRate2="18.862483" totalRate="363.656653" name="CAM5_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo5" writeRate="0.000000" enableRate="0.000000" fanout="3.181818" ru="5.021252" fanout2="1.000000" totalFanout="35.000000" fanoutRate="11.937298" numNets="24" extNets="11" carry8s="2" luts="10" logicCap="6777852" signalCap="2060.239212" power="0.000022" sp="0.000001">
+				</LOGIC>
+				<LOGIC clock="eo5_pclk_BUFG" clockFreq="74.250072" clockFreq2="74.250072" toggleRate="12.594313" toggleRate2="13.166782" totalRate="579.338422" name="CAM5_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_eo5" writeRate="0.000000" enableRate="0.858696" fanout="1.869565" ru="9.717195" fanout2="1.840909" totalFanout="86.000000" fanoutRate="411.596678" numNets="46" extNets="46" ffs="46" logicCap="3069440" signalCap="12331.639362" power="0.000011" sp="0.000044">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="1.521611" toggleRate2="11.351981" totalRate="933.318721" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_i2c" writeRate="0.000000" enableRate="0.000000" fanout="3.829736" ru="12.510304" fanout2="1.716216" totalFanout="1597.000000" fanoutRate="532.135909" numNets="831" extNets="417" SMUX="198" luts="585" logicCap="111643223" signalCap="116659.691406" power="0.000219" sp="0.000096">
+				</LOGIC>
+				<LOGIC clock="xlnx_opt_" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="0.016740" toggleRate2="4.306383" totalRate="17.225533" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_i2c" writeRate="0.000000" enableRate="0.006302" fanout="1.080661" ru="7.770948" fanout2="11.750000" totalFanout="1112.000000" fanoutRate="41.763949" numNets="1029" extNets="1029" ffs="1029" logicCap="279040" signalCap="6738.561890" power="0.000000" sp="0.000003">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="105.924721" clockFreq2="3.833317" toggleRate="1.245292" toggleRate2="4.117713" totalRate="45.482666" name="High_Fanout_Nets" hierName="KintexTop_EO_IR_HD_SDI_panorama_base/u_i2c" writeRate="0.000000" enableRate="0.340250" fanout="85.885714" ru="24.975926" fanout2="89.181818" totalFanout="3006.000000" fanoutRate="1203.219100" numNets="35" extNets="35" ffs="31" luts="4" logicCap="1706193" signalCap="267027.761719" power="0.000002" sp="0.000099">
+				</LOGIC>
+				<LOGIC clock="Unclocked_or_HFN_instance" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="24.201439" toggleRate2="19.944345" totalRate="649.715721" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base" writeRate="0.000000" enableRate="0.000000" fanout="3.166667" ru="5.974605" fanout2="1.500000" totalFanout="38.000000" fanoutRate="32.408867" numNets="34" extNets="12" carry8s="3" luts="10" logicCap="7021997" signalCap="3719.293526" power="0.000053" sp="0.000004">
+				</LOGIC>
+				<LOGIC clock="xlnx_opt_" clockFreq="100.000000" clockFreq2="100.000000" toggleRate="17.770936" toggleRate2="17.770936" totalRate="497.586199" name="CAM0_PCLK" hierName="KintexTop_EO_IR_HD_SDI_panorama_base" writeRate="0.000000" enableRate="1.000000" fanout="2.607143" ru="11.268732" fanout2="2.607143" totalFanout="73.000000" fanoutRate="793.902640" numNets="28" extNets="28" ffs="28" logicCap="1953280" signalCap="17412.462570" power="0.000013" sp="0.000069">
+				</LOGIC>
+			</BLOCKTYPE>
+			<BLOCKTYPE name="BRAM">
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" count="16">
+					<GROUPSUMMARY>
+						<BRAM name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" mode="RAMB36" cascade="1" toggleRate="0.466028" power="0.003850" sp="0.000025" vccbram="0.000075" vccint="0.003776">
+							<RAMPORT name="A" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clockFreq="52.962360" readWidth="2" writeWidth="2" enableRate="0.004944" writeMode="WRITE_FIRST" writeRate="0.000569">
+							</RAMPORT>
+							<RAMPORT name="B" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clockFreq="52.962360" readWidth="2" writeWidth="2" enableRate="0.192859" writeMode="WRITE_FIRST" writeRate="0.000000">
+							</RAMPORT>
+						</BRAM>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" count="8">
+					<GROUPSUMMARY>
+						<BRAM name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" mode="RAMB36" cascade="1" toggleRate="0.867154" power="0.001929" sp="0.000016" vccbram="0.000037" vccint="0.001891">
+							<RAMPORT name="A" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clockFreq="52.962360" readWidth="4" writeWidth="4" enableRate="0.004944" writeMode="WRITE_FIRST" writeRate="0.000681">
+							</RAMPORT>
+							<RAMPORT name="B" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clockFreq="52.962360" readWidth="4" writeWidth="4" enableRate="0.192859" writeMode="WRITE_FIRST" writeRate="0.000000">
+							</RAMPORT>
+						</BRAM>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" count="1">
+					<GROUPSUMMARY>
+						<BRAM name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" mode="RAMB18" cascade="1" toggleRate="0.000261" power="0.000536" sp="0.000000" vccbram="0.000038" vccint="0.000498">
+							<RAMPORT name="A" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="18" writeWidth="18" enableRate="1.000000" writeMode="WRITE_FIRST" writeRate="0.000000">
+							</RAMPORT>
+							<RAMPORT name="B" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_ddr_cal_top/u_ddr_cal/u_ddr_cal_addr_decode/u_ddr_cal_cplx/u_ddr_cal_cplx_data/&lt;const0&gt;" clockFreq="0.000000" readWidth="0" writeWidth="0" enableRate="0.000000" writeMode="WRITE_FIRST" writeRate="1.000000">
+							</RAMPORT>
+						</BRAM>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" count="1">
+					<GROUPSUMMARY>
+						<BRAM name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" mode="RAMB18SDP" cascade="1" toggleRate="2.011729" power="0.000160" sp="0.000000" vccbram="0.000000" vccint="0.000160">
+							<RAMPORT name="A" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="36" writeWidth="0" enableRate="0.000014" writeMode="NO_CHANGE" writeRate="0.000000">
+							</RAMPORT>
+							<RAMPORT name="B" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="0" writeWidth="36" enableRate="0.000000" writeMode="NO_CHANGE" writeRate="1.000000">
+							</RAMPORT>
+						</BRAM>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" count="1">
+					<GROUPSUMMARY>
+						<BRAM name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" mode="RAMB36" cascade="1" toggleRate="1.209601" power="0.000371" sp="0.000021" vccbram="0.000003" vccint="0.000368">
+							<RAMPORT name="A" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="9" writeWidth="9" enableRate="0.000029" writeMode="WRITE_FIRST" writeRate="0.000014">
+							</RAMPORT>
+							<RAMPORT name="B" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="9" writeWidth="9" enableRate="0.062337" writeMode="WRITE_FIRST" writeRate="0.000000">
+							</RAMPORT>
+						</BRAM>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" count="7">
+					<GROUPSUMMARY>
+						<BRAM name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" mode="RAMB36SDP" cascade="1" toggleRate="5.065520" power="0.002238" sp="0.000000" vccbram="0.000000" vccint="0.002238">
+							<RAMPORT name="A" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="72" writeWidth="0" enableRate="0.000014" writeMode="NO_CHANGE" writeRate="0.000000">
+							</RAMPORT>
+							<RAMPORT name="B" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="0" writeWidth="72" enableRate="0.000000" writeMode="NO_CHANGE" writeRate="1.000000">
+							</RAMPORT>
+						</BRAM>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0_xlnx_opt_" count="2">
+					<GROUPSUMMARY>
+						<BRAM name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0_xlnx_opt_" mode="RAMB36" cascade="1" toggleRate="0.001263" power="0.001062" sp="0.000000" vccbram="0.000031" vccint="0.001031">
+							<RAMPORT name="A" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="4" writeWidth="4" enableRate="0.000000" writeMode="NO_CHANGE" writeRate="1.000000">
+							</RAMPORT>
+							<RAMPORT name="B" clock="xlnx_opt_" clockFreq="100.000000" readWidth="4" writeWidth="4" enableRate="0.264207" writeMode="NO_CHANGE" writeRate="0.000000">
+							</RAMPORT>
+						</BRAM>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0_xlnx_opt_" count="2">
+					<GROUPSUMMARY>
+						<BRAM name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0_xlnx_opt_" mode="RAMB36" cascade="2" toggleRate="0.000217" power="0.001722" sp="0.000000" vccbram="0.000078" vccint="0.001645">
+							<RAMPORT name="A" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" readWidth="9" writeWidth="9" enableRate="0.996154" writeMode="NO_CHANGE" writeRate="1.000000">
+							</RAMPORT>
+							<RAMPORT name="B" clock="xlnx_opt_" clockFreq="100.000000" readWidth="9" writeWidth="9" enableRate="0.264207" writeMode="NO_CHANGE" writeRate="0.000000">
+							</RAMPORT>
+						</BRAM>
+					</GROUPSUMMARY>
+				</MODULE>
+			</BLOCKTYPE>
+			<BLOCKTYPE name="MMCM">
+				<MMCM name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/gen_mmcme4.u_mmcme_adv_inst" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/diff_input_clk.u_ibufg_sys_clk/O" clockFreq="70.616481" phaseShift="None" interpolators="1" divCounter="2" multCounter="15.000000" clock0Div="5" clock1Div="0" clock2Div="0" clock3Div="0" clock4Div="0" clock5Div="20" clock6Div="10" powerDownRate="0.000000" Vccint="0.000186" Vccaux="0.064921">
+				</MMCM>
+			</BLOCKTYPE>
+			<BLOCKTYPE name="PLL">
+				<PLL name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/plle_loop[0].gen_plle4.PLLE4_BASE_INST_OTHER" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" divCounter="1" multCounter="4" clock0Div="1" clock1Div="1" clock2Div="0" clock3Div="0" clock4Div="0" clock5Div="0" powerDownRate="0.000000" Vccint="0.000847" Vccaux="0.043250">
+				</PLL>
+				<PLL name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/plle_loop[1].gen_plle4.PLLE4_BASE_INST_OTHER" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" divCounter="1" multCounter="4" clock0Div="1" clock1Div="1" clock2Div="0" clock3Div="0" clock4Div="0" clock5Div="0" powerDownRate="0.000000" Vccint="0.000847" Vccaux="0.043250">
+				</PLL>
+				<PLL name="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/plle_loop[2].gen_plle4.PLLE4_BASE_INST_OTHER" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/u_bufg_divClk_0" clockFreq="105.924721" divCounter="1" multCounter="4" clock0Div="1" clock1Div="1" clock2Div="0" clock3Div="0" clock4Div="0" clock5Div="0" powerDownRate="0.000000" Vccint="0.000847" Vccaux="0.043250">
+				</PLL>
+			</BLOCKTYPE>
+			<BLOCKTYPE name="DSP">
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" count="1">
+					<GROUPSUMMARY>
+						<DSP48E2 name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" toggleRate="1.702664" clockFreq="52.962360" multUsed="Yes" mregUsed="No" preAdderUsed="No" power="0.000075">
+						</DSP48E2>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" count="2">
+					<GROUPSUMMARY>
+						<DSP48E2 name="KintexTop_EO_IR_HD_SDI_panorama_base/u_ddr_black_frame|u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_infrastructure/c0_riu_clk" toggleRate="2.161338" clockFreq="52.962360" multUsed="Yes" mregUsed="Yes" preAdderUsed="No" power="0.000156">
+						</DSP48E2>
+					</GROUPSUMMARY>
+				</MODULE>
+			</BLOCKTYPE>
+			<BLOCKTYPE name="IO">
+				<MODULE name="CAM0_COUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM0_COUT&lt;0:7&gt;" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS33" bidis="0" inputs="8" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="90" vccInt="0.000014" vccAux="0.000000" vcco="0.000799" vccoCurrent="0.000242" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM0_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="CAM0_PCLK" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS33" bidis="0" inputs="1" outputs="0" signalRate="200.000000" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="Yes" inTerm="RTT_NONE" outTerm="NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="90" vccInt="0.000012" vccAux="0.000000" vcco="0.001598" vccoCurrent="0.000484" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM0_YOUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM0_YOUT&lt;0:7&gt;" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS33" bidis="0" inputs="8" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="90" vccInt="0.000014" vccAux="0.000000" vcco="0.000799" vccoCurrent="0.000242" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM1_COUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM1_COUT&lt;0:7&gt;" clock="CAM1_PCLK" clockFreq="100.000000" ioStandard="LVCMOS33" bidis="0" inputs="8" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="91" vccInt="0.000014" vccAux="0.000000" vcco="0.000799" vccoCurrent="0.000242" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM1_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="CAM1_PCLK" clock="CAM1_PCLK" clockFreq="100.000000" ioStandard="LVCMOS33" bidis="0" inputs="1" outputs="0" signalRate="200.000000" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="Yes" inTerm="RTT_NONE" outTerm="NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="91" vccInt="0.000012" vccAux="0.000000" vcco="0.001598" vccoCurrent="0.000484" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM1_YOUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM1_YOUT&lt;0:7&gt;" clock="CAM1_PCLK" clockFreq="100.000000" ioStandard="LVCMOS33" bidis="0" inputs="8" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="91" vccInt="0.000014" vccAux="0.000000" vcco="0.000799" vccoCurrent="0.000242" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM2_COUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM2_COUT&lt;0:7&gt;" clock="CAM2_PCLK" clockFreq="74.250072" ioStandard="LVCMOS33" bidis="0" inputs="8" outputs="0" signalRate="9.281259" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="93" vccInt="0.000013" vccAux="0.000000" vcco="0.000593" vccoCurrent="0.000180" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM2_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="CAM2_PCLK" clock="CAM2_PCLK" clockFreq="74.250072" ioStandard="LVCMOS33" bidis="0" inputs="1" outputs="0" signalRate="148.500137" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="Yes" inTerm="RTT_NONE" outTerm="NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="93" vccInt="0.000009" vccAux="0.000000" vcco="0.001186" vccoCurrent="0.000360" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM2_YOUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM2_YOUT&lt;0:7&gt;" clock="CAM2_PCLK" clockFreq="74.250072" ioStandard="LVCMOS33" bidis="0" inputs="8" outputs="0" signalRate="9.281259" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="93" vccInt="0.000013" vccAux="0.000000" vcco="0.000593" vccoCurrent="0.000180" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM3_COUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM3_COUT&lt;0:7&gt;" clock="CAM3_PCLK" clockFreq="74.250072" ioStandard="LVCMOS33" bidis="0" inputs="8" outputs="0" signalRate="9.281259" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="94" vccInt="0.000013" vccAux="0.000000" vcco="0.000593" vccoCurrent="0.000180" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM3_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="CAM3_PCLK" clock="CAM3_PCLK" clockFreq="74.250072" ioStandard="LVCMOS33" bidis="0" inputs="1" outputs="0" signalRate="148.500137" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="Yes" inTerm="RTT_NONE" outTerm="NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="94" vccInt="0.000009" vccAux="0.000000" vcco="0.001186" vccoCurrent="0.000360" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM3_YOUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM3_YOUT&lt;0:7&gt;" clock="CAM3_PCLK" clockFreq="74.250072" ioStandard="LVCMOS33" bidis="0" inputs="8" outputs="0" signalRate="9.281259" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="94" vccInt="0.000013" vccAux="0.000000" vcco="0.000593" vccoCurrent="0.000180" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM4_COUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM4_COUT&lt;0:7&gt;" clock="CAM4_PCLK" clockFreq="74.250072" ioStandard="LVCMOS18" bidis="0" inputs="8" outputs="0" signalRate="9.281259" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="69" vccInt="0.000000" vccAux="0.000000" vcco="0.000013" vccoCurrent="0.000007" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM4_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="CAM4_PCLK" clock="CAM4_PCLK" clockFreq="74.250072" ioStandard="LVCMOS18" bidis="0" inputs="1" outputs="0" signalRate="148.500137" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="Yes" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="69" vccInt="0.000000" vccAux="0.000000" vcco="0.000027" vccoCurrent="0.000015" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM4_YOUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM4_YOUT&lt;0:7&gt;" clock="CAM4_PCLK" clockFreq="74.250072" ioStandard="LVCMOS18" bidis="0" inputs="8" outputs="0" signalRate="9.281259" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="69" vccInt="0.000000" vccAux="0.000000" vcco="0.000013" vccoCurrent="0.000007" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM5_COUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM5_COUT&lt;0:7&gt;" clock="CAM5_PCLK" clockFreq="74.250072" ioStandard="LVCMOS18" bidis="0" inputs="8" outputs="0" signalRate="9.281259" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="69" vccInt="0.000000" vccAux="0.000000" vcco="0.000013" vccoCurrent="0.000007" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM5_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="CAM5_PCLK" clock="CAM5_PCLK" clockFreq="74.250072" ioStandard="LVCMOS18" bidis="0" inputs="1" outputs="0" signalRate="148.500137" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="Yes" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="69" vccInt="0.000000" vccAux="0.000000" vcco="0.000027" vccoCurrent="0.000015" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="CAM5_YOUT&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="CAM5_YOUT&lt;0:7&gt;" clock="CAM5_PCLK" clockFreq="74.250072" ioStandard="LVCMOS18" bidis="0" inputs="8" outputs="0" signalRate="9.281259" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="69" vccInt="0.000000" vccAux="0.000000" vcco="0.000013" vccoCurrent="0.000007" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="HD_DE" count="1">
+					<GROUPSUMMARY>
+						<IO name="HD_DE" clock="CAM0_PCLKCAM1_PCLKCAM2_PCLKCAM3_PCLKCAM4_PCLKCAM5_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="7.573498" toggleRate="7.573498" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.000186" vccoCurrent="0.000103" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="HD_DOUT&lt;0:19&gt;" count="20">
+					<GROUPSUMMARY>
+						<IO name="HD_DOUT&lt;0:19&gt;" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="20" signalRate="1.123501" toggleRate="1.123501" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="20" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.000552" vccoCurrent="0.000307" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="HD_HSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="HD_HSYNC" clock="CAM0_PCLKCAM1_PCLKCAM2_PCLKCAM3_PCLKCAM4_PCLKCAM5_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="7.573498" toggleRate="7.573498" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.000186" vccoCurrent="0.000103" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="HD_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="HD_PCLK" clock="CAM0_PCLKCAM1_PCLKCAM2_PCLKCAM3_PCLKCAM4_PCLKCAM5_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="200.000000" toggleRate="200.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.004916" vccoCurrent="0.002731" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="HD_VSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="HD_VSYNC" clock="CAM0_PCLKCAM1_PCLKCAM2_PCLKCAM3_PCLKCAM4_PCLKCAM5_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.000077" toggleRate="0.000077" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IEG0_DOUT&lt;0:19&gt;" count="20">
+					<GROUPSUMMARY>
+						<IO name="IEG0_DOUT&lt;0:19&gt;" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="20" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="20" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IEG0_HSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="IEG0_HSYNC" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IEG0_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IEG0_PCLK" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IEG0_VSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="IEG0_VSYNC" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="71" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IEG1_DOUT&lt;0:19&gt;" count="20">
+					<GROUPSUMMARY>
+						<IO name="IEG1_DOUT&lt;0:19&gt;" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="20" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="20" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="70" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IEG1_HSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="IEG1_HSYNC" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IEG1_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IEG1_PCLK" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IEG1_VSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="IEG1_VSYNC" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM0_GENLOCK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM0_GENLOCK" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.412775" toggleRate="0.412775" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000010" vccoCurrent="0.000006" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM0_HSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM0_HSYNC" clock="IRCAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18" bidis="0" inputs="1" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000002" vccoCurrent="0.000001" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM0_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM0_PCLK" clock="IRCAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18" bidis="0" inputs="1" outputs="0" signalRate="200.000000" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000036" vccoCurrent="0.000020" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM0_VSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM0_VSYNC" clock="IRCAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18" bidis="0" inputs="1" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000002" vccoCurrent="0.000001" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM1_GENLOCK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM1_GENLOCK" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.412775" toggleRate="0.412775" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000010" vccoCurrent="0.000006" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM1_HSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM1_HSYNC" clock="IRCAM1_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18" bidis="0" inputs="1" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000002" vccoCurrent="0.000001" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM1_PCLK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM1_PCLK" clock="IRCAM1_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18" bidis="0" inputs="1" outputs="0" signalRate="200.000000" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000036" vccoCurrent="0.000020" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM1_VSYNC" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM1_VSYNC" clock="IRCAM1_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18" bidis="0" inputs="1" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="64" vccInt="0.000000" vccAux="0.000000" vcco="0.000002" vccoCurrent="0.000001" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM2_GENLOCK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM2_GENLOCK" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.412775" toggleRate="0.412775" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="70" vccInt="0.000000" vccAux="0.000000" vcco="0.000010" vccoCurrent="0.000006" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM3_GENLOCK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM3_GENLOCK" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.412775" toggleRate="0.412775" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="70" vccInt="0.000000" vccAux="0.000000" vcco="0.000010" vccoCurrent="0.000006" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM4_GENLOCK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM4_GENLOCK" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.412775" toggleRate="0.412775" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="65" vccInt="0.000000" vccAux="0.000000" vcco="0.000010" vccoCurrent="0.000006" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="IRCAM5_GENLOCK" count="1">
+					<GROUPSUMMARY>
+						<IO name="IRCAM5_GENLOCK" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="0.412775" toggleRate="0.412775" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="65" vccInt="0.000000" vccAux="0.000000" vcco="0.000010" vccoCurrent="0.000006" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="SCL" count="1">
+					<GROUPSUMMARY>
+						<IO name="SCL" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS33" bidis="0" inputs="1" outputs="0" signalRate="12.500000" toggleRate="12.500000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="Yes" inTerm="RTT_NONE" outTerm="NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="94" vccInt="0.000002" vccAux="0.000000" vcco="0.000100" vccoCurrent="0.000030" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="SDA" count="1">
+					<GROUPSUMMARY>
+						<IO name="SDA" clock="CAM0_PCLK" clockFreq="100.000000" ioStandard="LVCMOS33_12" bidis="1" inputs="0" outputs="0" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="0.024691" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="Yes" inTerm="RTT_NONE" outTerm="RDRV_NONE_NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="94" vccInt="0.000001" vccAux="0.000000" vcco="0.000003" vccoCurrent="0.000001" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="STROBE_OUT0" count="1">
+					<GROUPSUMMARY>
+						<IO name="STROBE_OUT0" clock="" clockFreq="0.000000" ioStandard="LVCMOS33" bidis="0" inputs="1" outputs="0" signalRate="105.924721" toggleRate="12.500000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="90" vccInt="0.000007" vccAux="0.000000" vcco="0.000846" vccoCurrent="0.000256" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="TRIG_IN1" count="1">
+					<GROUPSUMMARY>
+						<IO name="TRIG_IN1" clock="" clockFreq="0.000000" ioStandard="LVCMOS33_12" bidis="0" inputs="0" outputs="1" signalRate="105.924721" toggleRate="12.500000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="91" vccInt="0.000015" vccAux="0.000000" vcco="0.005991" vccoCurrent="0.001815" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="TRIG_IN2" count="1">
+					<GROUPSUMMARY>
+						<IO name="TRIG_IN2" clock="" clockFreq="0.000000" ioStandard="LVCMOS33_12" bidis="0" inputs="0" outputs="1" signalRate="105.924721" toggleRate="12.500000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="93" vccInt="0.000015" vccAux="0.000000" vcco="0.005991" vccoCurrent="0.001815" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="TRIG_IN3" count="1">
+					<GROUPSUMMARY>
+						<IO name="TRIG_IN3" clock="" clockFreq="0.000000" ioStandard="LVCMOS33_12" bidis="0" inputs="0" outputs="1" signalRate="105.924721" toggleRate="12.500000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHD="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="94" vccInt="0.000015" vccAux="0.000000" vcco="0.005991" vccoCurrent="0.001815" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="TRIG_IN4" count="1">
+					<GROUPSUMMARY>
+						<IO name="TRIG_IN4" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="105.924721" toggleRate="12.500000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="69" vccInt="0.000000" vccAux="0.000000" vcco="0.002604" vccoCurrent="0.001446" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="TRIG_IN5" count="1">
+					<GROUPSUMMARY>
+						<IO name="TRIG_IN5" clock="" clockFreq="0.000000" ioStandard="LVCMOS18_12" bidis="0" inputs="0" outputs="1" signalRate="105.924721" toggleRate="12.500000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="Async" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="69" vccInt="0.000000" vccAux="0.000000" vcco="0.002604" vccoCurrent="0.001446" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_act_n" count="1">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_act_n" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" clockFreq="423.698883" ioStandard="SSTL12_DCI" bidis="0" inputs="0" outputs="1" signalRate="46.475136" toggleRate="5.484454" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="RXTX_BITSLICE" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_40_40" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.002296" vccoCurrent="0.001914" extTerm="FP_VTT_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_adr&lt;0:16&gt;" count="17">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_adr&lt;0:16&gt;" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" clockFreq="423.698883" ioStandard="SSTL12_DCI" bidis="0" inputs="0" outputs="17" signalRate="6.744292" toggleRate="0.795883" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="RXTX_BITSLICE" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_40_40" numHP="17" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.035391" vccoCurrent="0.029493" extTerm="FP_VTT_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_ba&lt;0:1&gt;" count="2">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_ba&lt;0:1&gt;" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" clockFreq="423.698883" ioStandard="SSTL12_DCI" bidis="0" inputs="0" outputs="2" signalRate="36.515519" toggleRate="4.309135" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="RXTX_BITSLICE" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_40_40" numHP="2" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.004485" vccoCurrent="0.003738" extTerm="FP_VTT_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_bg[0]" count="1">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_bg[0]" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" clockFreq="423.698883" ioStandard="SSTL12_DCI" bidis="0" inputs="0" outputs="1" signalRate="6.943776" toggleRate="0.819423" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="RXTX_BITSLICE" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_40_40" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.002083" vccoCurrent="0.001736" extTerm="FP_VTT_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_ck_t[0]" count="1">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_ck_t[0]" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" clockFreq="423.698883" ioStandard="DIFF_SSTL12_DCI" bidis="0" inputs="0" outputs="1" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="DDR" serdes="RXTX_BITSLICE" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_40_40" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.004091" vccoCurrent="0.003409" extTerm="FP_VTT_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_cke[0]" count="1">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_cke[0]" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" clockFreq="423.698883" ioStandard="SSTL12_DCI" bidis="0" inputs="0" outputs="1" signalRate="6.864028" toggleRate="0.810013" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="RXTX_BITSLICE" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_40_40" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.002082" vccoCurrent="0.001735" extTerm="FP_VTT_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_cs_n[0]" count="1">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_cs_n[0]" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" clockFreq="423.698883" ioStandard="SSTL12_DCI" bidis="0" inputs="0" outputs="1" signalRate="67.074074" toggleRate="7.915299" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="RXTX_BITSLICE" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_40_40" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.002407" vccoCurrent="0.002006" extTerm="FP_VTT_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_dm_dbi_n&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_dm_dbi_n&lt;0:7&gt;" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[0]" clockFreq="423.698883" ioStandard="POD12_DCI" bidis="8" inputs="0" outputs="0" signalRate="69.757434" toggleRate="8.231959" outputEnableRate="0.500000" outputLoad="0.000000" dataRate="DDR" serdes="RXTX_BITSLICE" preEmphasis="Yes" ioDelay="No" ibufLowPower="No" inTerm="RTT_40" outTerm="RDRV_40_40" numHP="8" ibufDisable="0.000000" dcitermDisable="0.500000" ioBank="66" vccInt="0.000000" vccAux="0.000000" vcco="0.011974" vccoCurrent="0.009978" extTerm="FP_VCCO_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_dq&lt;0:63&gt;" count="64">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_dq&lt;0:63&gt;" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[2]" clockFreq="423.698883" ioStandard="POD12_DCI" bidis="64" inputs="0" outputs="0" signalRate="86.034038" toggleRate="10.152733" outputEnableRate="0.500000" outputLoad="0.000000" dataRate="DDR" serdes="RXTX_BITSLICE" preEmphasis="Yes" ioDelay="No" ibufLowPower="No" inTerm="RTT_40" outTerm="RDRV_40_40" numHP="64" ibufDisable="0.000000" dcitermDisable="0.500000" ioBank="68" vccInt="0.000000" vccAux="0.000000" vcco="0.096015" vccoCurrent="0.080013" extTerm="FP_VCCO_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_dqs_t&lt;0:7&gt;" count="8">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_dqs_t&lt;0:7&gt;" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[2]" clockFreq="423.698883" ioStandard="DIFF_POD12_DCI" bidis="8" inputs="0" outputs="0" signalRate="0.000000" toggleRate="0.000000" outputEnableRate="0.500000" outputLoad="0.000000" dataRate="DDR" serdes="RXTX_BITSLICE" preEmphasis="Yes" ioDelay="No" ibufLowPower="No" inTerm="RTT_40" outTerm="RDRV_40_40" numHP="8" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="68" vccInt="0.000000" vccAux="0.000000" vcco="0.065455" vccoCurrent="0.054545" extTerm="FP_VCCO_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_odt[0]" count="1">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_odt[0]" clock="u_ddr_black_frame/u_ddr4_sub64/inst/u_ddr4_mem_intfc/u_mig_ddr4_phy/inst/u_ddr4_phy_pll/pll_clk[1]" clockFreq="423.698883" ioStandard="SSTL12_DCI" bidis="0" inputs="0" outputs="1" signalRate="0.000119" toggleRate="0.000014" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="RXTX_BITSLICE" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_40_40" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.002045" vccoCurrent="0.001705" extTerm="FP_VTT_50">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_ddr4_reset_n" count="1">
+					<GROUPSUMMARY>
+						<IO name="c0_ddr4_reset_n" clock="mmcm_clkout0" clockFreq="105.924721" ioStandard="LVCMOS12_8" bidis="0" inputs="0" outputs="1" signalRate="0.005100" toggleRate="0.004814" outputEnableRate="1.000000" outputLoad="0.000000" dataRate="SDR" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="NONE" outTerm="RDRV_NONE_NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="68" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+				<MODULE name="c0_sys_clk_p" count="1">
+					<GROUPSUMMARY>
+						<IO name="c0_sys_clk_p" clock="c0_sys_clk_p" clockFreq="70.616481" ioStandard="DIFF_SSTL12" bidis="0" inputs="1" outputs="0" signalRate="141.232956" toggleRate="200.000000" dataRate="Clock" serdes="No" preEmphasis="No" ioDelay="No" ibufLowPower="No" inTerm="RTT_NONE" outTerm="NONE" numHP="1" ibufDisable="0.000000" dcitermDisable="0.000000" ioBank="67" vccInt="0.000000" vccAux="0.000000" vcco="0.000000" vccoCurrent="0.000000" extTerm="NONE">
+						</IO>
+					</GROUPSUMMARY>
+				</MODULE>
+			</BLOCKTYPE>
+			<BLOCKTYPE name="IOBANK">
+				<IOBANK numInternalVref="2" numDelayControl="0" numLVDSBanks="0">
+				</IOBANK>
+			</BLOCKTYPE>
+		</BYTYPE>
+	</BLOCKDETAILS>
+</POWERDATA>
+

@@ -482,10 +482,10 @@ set_property BITSTREAM.CONFIG.M2PIN PULLDOWN [current_design]
 # I2C (FPGA slave) pins (same as EO project wiring)
 set_property PACKAGE_PIN G11 [get_ports SCL]
 set_property IOSTANDARD LVCMOS33 [get_ports SCL]
-set_property PULLUP true [get_ports SCL]
+set_property PULLTYPE PULLUP [get_ports SCL]
 set_property PACKAGE_PIN F11 [get_ports SDA]
 set_property IOSTANDARD LVCMOS33 [get_ports SDA]
-set_property PULLUP true [get_ports SDA]
+set_property PULLTYPE PULLUP [get_ports SDA]
 
 #####################################################################
 # EO camera inputs / HD-SDI output (merged from previous working EO build)
@@ -776,13 +776,15 @@ set_clock_groups -physically_exclusive -group [get_clocks CAM0_PCLK] -group [get
 # The EO stack and IR-to-HD paths cross from per-camera capture clocks into the
 # CAM0_PCLK HD output domain only through dual-port memories. Those crossings
 # are asynchronous by design and should not be timed as synchronous paths.
-set_clock_groups -asynchronous \
-    -group [get_clocks CAM0_PCLK] \
-    -group [get_clocks {CAM1_PCLK CAM2_PCLK CAM3_PCLK CAM4_PCLK CAM5_PCLK IRCAM0_PCLK}]
+set_clock_groups -asynchronous -group [get_clocks CAM0_PCLK] -group [get_clocks {CAM1_PCLK CAM2_PCLK CAM3_PCLK CAM4_PCLK CAM5_PCLK IRCAM0_PCLK}]
 
 # The processed DDR path uses the MIG ui clock domain internally and crosses
 # to camera/HD clocks only through explicit FIFOs or 2-FF synchronizers.
 # Those domains must not be timed synchronously against each other.
-set_clock_groups -asynchronous \
-    -group [get_clocks mmcm_clkout0] \
-    -group [get_clocks {CAM0_PCLK CAM1_PCLK CAM2_PCLK CAM3_PCLK CAM4_PCLK CAM5_PCLK IRCAM0_PCLK IRCAM1_PCLK IRCAM2_PCLK IRCAM3_PCLK IRCAM4_PCLK IRCAM5_PCLK}]
+####################################################################################
+# Constraints from file : 'xpm_cdc_gray.tcl'
+####################################################################################
+
+set_clock_groups -asynchronous -group [get_clocks mmcm_clkout0] -group [get_clocks {CAM0_PCLK CAM1_PCLK CAM2_PCLK CAM3_PCLK CAM4_PCLK CAM5_PCLK IRCAM0_PCLK IRCAM1_PCLK IRCAM2_PCLK IRCAM3_PCLK IRCAM4_PCLK IRCAM5_PCLK}]
+
+

@@ -27,3 +27,13 @@ ip/ddr4_sub64/*
 # OS/editor noise
 Thumbs.db
 .DS_Store
+# Keep the recreatable debug ILA IP source (regenerated via
+# scripts/codex_add_ila.tcl + scripts/codex_widen_ila.tcl), mirroring the
+# DDR-IP convention above -- .xci only, not the generated products.
+!ip/dbg_ila_0/
+ip/dbg_ila_0/*
+!ip/dbg_ila_0/dbg_ila_0.xci
+
+# Raw ILA hardware capture dumps (large, regeneratable via
+# scripts/codex_ila_capture*.tcl); findings summarized in the plan doc.
+ila_capture_*.csv

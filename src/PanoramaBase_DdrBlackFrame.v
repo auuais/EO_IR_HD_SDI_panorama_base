@@ -59,6 +59,30 @@ module PanoramaBase_DdrBlackFrame(
     input  wire        ir5_wr_hsync,
     input  wire        ir5_wr_vsync,
     input  wire [7:0]  ir5_wr_pixel,
+    input  wire        eo0_wr_clk,
+    input  wire        eo0_wr_hsync,
+    input  wire        eo0_wr_vsync,
+    input  wire [19:0] eo0_wr_pixel,
+    input  wire        eo1_wr_clk,
+    input  wire        eo1_wr_hsync,
+    input  wire        eo1_wr_vsync,
+    input  wire [19:0] eo1_wr_pixel,
+    input  wire        eo2_wr_clk,
+    input  wire        eo2_wr_hsync,
+    input  wire        eo2_wr_vsync,
+    input  wire [19:0] eo2_wr_pixel,
+    input  wire        eo3_wr_clk,
+    input  wire        eo3_wr_hsync,
+    input  wire        eo3_wr_vsync,
+    input  wire [19:0] eo3_wr_pixel,
+    input  wire        eo4_wr_clk,
+    input  wire        eo4_wr_hsync,
+    input  wire        eo4_wr_vsync,
+    input  wire [19:0] eo4_wr_pixel,
+    input  wire        eo5_wr_clk,
+    input  wire        eo5_wr_hsync,
+    input  wire        eo5_wr_vsync,
+    input  wire [19:0] eo5_wr_pixel,
     input  wire        c0_sys_clk_p,
     input  wire        c0_sys_clk_n,
     output wire [16:0] c0_ddr4_adr,
@@ -82,28 +106,56 @@ module PanoramaBase_DdrBlackFrame(
     output wire [19:0] hd_dout
 );
     //------------------------------------------------------------------------
+    // DDR content source select (compile-time bring-up target for this
+    // build).  SRC_RAMP is the Stage-A IR/ramp-over-DDR proof (640x512,
+    // centered window).  SRC_EOSTK is the Stage-B EO 3x2 panorama composited
+    // through DDR (1920x960, top-aligned with a black band below -- matches
+    // the proven BRAM/URAM reference project's stack layout).  Flip this one
+    // localparam and rebuild to fall back to the Stage-A ramp for DDR-only
+    // regression testing; everything downstream (geometry, renderer window,
+    // copy engine) follows automatically.
+    //------------------------------------------------------------------------
+    localparam SRC_RAMP  = 1'b0;
+    localparam SRC_EOSTK = 1'b1;
+    localparam SRC_SEL   = SRC_RAMP;
+
+    //------------------------------------------------------------------------
     // Geometry / DDR layout
     //------------------------------------------------------------------------
-    localparam integer SRC_W         = 640;
-    localparam integer SRC_H         = 512;
-    localparam [18:0]  FRAME_PIXELS  = 19'd327680;   // 640*512
-    localparam [16:0]  BEATS_TOTAL   = 17'd10240;    // 327680/32 pixels-per-beat
-    localparam [28:0]  ADDR_STRIDE   = 29'd8;        // app_addr units per 512-bit beat
+    localparam integer RAMP_SRC_W  = 640,  RAMP_SRC_H  = 512;
+    localparam integer EOSTK_SRC_W = 1920, EOSTK_SRC_H = 960;
+    localparam integer SRC_W = (SRC_SEL == SRC_EOSTK) ? EOSTK_SRC_W : RAMP_SRC_W;
+    localparam integer SRC_H = (SRC_SEL == SRC_EOSTK) ? EOSTK_SRC_H : RAMP_SRC_H;
+
+    // RAMP/IR window is centered in the 1920x1080 active area (Stage A,
+    // unchanged); the EO panorama is top-left aligned with the stack filling
+    // rows 0..959 and a black band for rows 960..1079 (donor project layout).
+    localparam integer RAMP_X_OFF  = (1920 - RAMP_SRC_W) / 2;   // 640
+    localparam integer RAMP_Y_OFF  = (1080 - RAMP_SRC_H) / 2;   // 284
+    localparam integer EOSTK_X_OFF = 0;
+    localparam integer EOSTK_Y_OFF = 0;
+    localparam integer WIN_X_OFF = (SRC_SEL == SRC_EOSTK) ? EOSTK_X_OFF : RAMP_X_OFF;
+    localparam integer WIN_Y_OFF = (SRC_SEL == SRC_EOSTK) ? EOSTK_Y_OFF : RAMP_Y_OFF;
+
+    localparam [20:0]  FRAME_PIXELS  = SRC_W * SRC_H;      // 1,843,200 (EO) / 327,680 (ramp)
+    localparam [16:0]  BEATS_TOTAL   = FRAME_PIXELS / 32;  // 57,600 (EO) / 10,240 (ramp)
+    localparam [28:0]  ADDR_STRIDE   = 29'd8;              // app_addr units per 512-bit beat
     localparam [28:0]  BANK0_BASE    = 29'd0;
-    localparam [28:0]  BANK1_BASE    = BEATS_TOTAL * ADDR_STRIDE; // 81920
-    localparam [6:0]   MAX_OUTSTANDING = 7'd32;
+    localparam [28:0]  BANK1_BASE    = BEATS_TOTAL * ADDR_STRIDE; // 460,800 (EO) / 81,920 (ramp)
+    localparam [6:0]   MAX_OUTSTANDING = 7'd16;
     localparam [15:0]  BLACK_PIXEL   = 16'h1080;     // Y=0x10, C=0x80 (neutral)
     localparam [511:0] BLACK_BURST   = {32{BLACK_PIXEL}};
 
-    // DIAGNOSTIC BISECTION: when 1, the copy writes a known raster ramp
-    // (luma = pixel_index[7:0]) into DDR instead of the captured camera pixel.
-    // Everything else (copy write, DDR store, scan, unpack, render) runs exactly
-    // as in the live path.  Clean diagonal ramp on screen  => the whole DDR
-    // pipeline is correct and the live fault is the BRAM/camera data.  Garbled
-    // or green/underflow => the fault is in the write/DDR/scan/render path.
-    // Set back to 0 for live IR.  When 1, the copy is also self-triggered every
-    // display frame (camera-independent) so the DDR write/scan/render path is
-    // exercised with a known ramp regardless of which IR camera is connected.
+    // DIAGNOSTIC BISECTION (SRC_SEL==SRC_RAMP builds only): when 1, the copy
+    // writes a known raster ramp (luma = pixel_index[7:0]) into DDR instead of
+    // the captured camera pixel.  Everything else (copy write, DDR store,
+    // scan, unpack, render) runs exactly as in the live path.  Clean diagonal
+    // ramp on screen  => the whole DDR pipeline is correct and the live fault
+    // is the BRAM/camera data.  Garbled or green/underflow => the fault is in
+    // the write/DDR/scan/render path.  Set to 0 for live IR.  When 1, the copy
+    // is also self-triggered every display frame (camera-independent) so the
+    // DDR write/scan/render path is exercised with a known ramp regardless of
+    // which IR camera is connected.
     localparam         PATTERN_TEST  = 1'b1;
 
     //------------------------------------------------------------------------
@@ -127,21 +179,56 @@ module PanoramaBase_DdrBlackFrame(
     wire [511:0] dbg_bus;
     wire         c0_ddr4_ui_clk;
     wire         c0_ddr4_ui_clk_sync_rst;
-    reg          c0_ddr4_app_en;
-    reg          c0_ddr4_app_hi_pri;
-    reg          c0_ddr4_app_wdf_end;
-    reg          c0_ddr4_app_wdf_wren;
+    wire         c0_ddr4_app_en;
+    wire         c0_ddr4_app_hi_pri;
+    wire         c0_ddr4_app_wdf_end;
+    wire         c0_ddr4_app_wdf_wren;
     wire         c0_ddr4_app_rd_data_end;
     wire         c0_ddr4_app_rd_data_valid;
     wire         c0_ddr4_app_rdy;
     wire         c0_ddr4_app_wdf_rdy;
-    reg  [28:0]  c0_ddr4_app_addr;
-    reg  [2:0]   c0_ddr4_app_cmd;
-    reg  [511:0] c0_ddr4_app_wdf_data;
-    reg  [63:0]  c0_ddr4_app_wdf_mask;
+    wire [28:0]  c0_ddr4_app_addr;
+    wire [2:0]   c0_ddr4_app_cmd;
+    wire [511:0] c0_ddr4_app_wdf_data;
+    wire [63:0]  c0_ddr4_app_wdf_mask;
     wire [511:0] c0_ddr4_app_rd_data;
 
     assign init_calib_complete_o = c0_init_calib_complete;
+
+    //------------------------------------------------------------------------
+    // MIG native-interface command/data launch registers.  PG150 requires the
+    // enable/command (and, independently, the write-data strobes) to be HELD
+    // until the matching *_rdy is seen high in the same cycle -- a one-cycle
+    // pulse qualified only by the *previous* cycle's rdy (the old design) can
+    // be silently dropped whenever rdy deasserts (refresh/ZQ/queue pressure),
+    // permanently leaking the outstanding-read counter (stuck scan, solid
+    // green) or misaligning the write command/data pairing (corrupted DDR
+    // contents, noise).  These regs are combinationally exposed on the app_*
+    // ports and only cleared once the MIG actually accepts them.
+    //------------------------------------------------------------------------
+    reg          cmd_pend;
+    reg          cmd_is_rd;
+    reg  [28:0]  cmd_addr_q;
+    reg          wdf_pend;
+    reg  [511:0] wdf_data_q;
+    reg          w_cmd_done;   // write command phase already accepted (sticky, write ops only)
+    reg          w_wdf_done;   // write data phase already accepted (sticky, write ops only)
+
+    assign c0_ddr4_app_en       = cmd_pend;
+    assign c0_ddr4_app_hi_pri   = 1'b0;
+    assign c0_ddr4_app_cmd      = cmd_is_rd ? 3'b001 : 3'b000;
+    assign c0_ddr4_app_addr     = cmd_addr_q;
+    assign c0_ddr4_app_wdf_wren = wdf_pend;
+    assign c0_ddr4_app_wdf_end  = wdf_pend;
+    assign c0_ddr4_app_wdf_data = wdf_pend ? wdf_data_q : BLACK_BURST;
+    assign c0_ddr4_app_wdf_mask = 64'd0;
+
+    wire cmd_fire    = cmd_pend && c0_ddr4_app_rdy;
+    wire wdf_fire    = wdf_pend && c0_ddr4_app_wdf_rdy;
+    wire issue_busy  = cmd_pend || wdf_pend;
+    wire read_retiring  = cmd_pend && cmd_is_rd && cmd_fire;
+    wire write_retiring = issue_busy && !cmd_is_rd &&
+                          (w_cmd_done || cmd_fire) && (w_wdf_done || wdf_fire);
 
     ddr4_sub64 u_ddr4_sub64 (
         .c0_init_calib_complete(c0_init_calib_complete),
@@ -198,7 +285,14 @@ module PanoramaBase_DdrBlackFrame(
     wire        pix_fifo_wr_rst_busy;
     wire        pix_fifo_rd_rst_busy;
     wire        pix_fifo_rd_en;
+    wire        pix_fifo_overflow;
+    wire        pix_fifo_underflow;
 
+    // USE_ADV_FEATURES bit map (xpm_fifo.sv): bit0=overflow, bit1=prog_full,
+    // bit8=underflow, bit9=prog_empty -> "0303" enables exactly those four.
+    // The previous "0004" enabled only wr_data_count (an unconnected port),
+    // which left prog_full/prog_empty hard-wired to constant 0/1 and disabled
+    // all flow control on both FIFOs below.
     xpm_fifo_async #(
         .DOUT_RESET_VALUE    ("0"),
         .ECC_MODE            ("no_ecc"),
@@ -212,7 +306,7 @@ module PanoramaBase_DdrBlackFrame(
         .READ_DATA_WIDTH     (16),
         .READ_MODE           ("fwft"),
         .SIM_ASSERT_CHK      (0),
-        .USE_ADV_FEATURES    ("0004"),
+        .USE_ADV_FEATURES    ("0303"),
         .WAKEUP_TIME         (0),
         .WR_DATA_COUNT_WIDTH (13),
         .WRITE_DATA_WIDTH    (16),
@@ -226,10 +320,12 @@ module PanoramaBase_DdrBlackFrame(
         .wr_en         (pix_fifo_wr_en),
         .full          (pix_fifo_full),
         .prog_full     (pix_fifo_prog_full),
+        .overflow      (pix_fifo_overflow),
         .rd_en         (pix_fifo_rd_en),
         .dout          (pix_fifo_dout),
         .empty         (pix_fifo_empty),
         .prog_empty    (pix_fifo_prog_empty),
+        .underflow     (pix_fifo_underflow),
         .wr_rst_busy   (pix_fifo_wr_rst_busy),
         .rd_rst_busy   (pix_fifo_rd_rst_busy),
         .sleep         (1'b0),
@@ -243,6 +339,8 @@ module PanoramaBase_DdrBlackFrame(
     reg          beat_fifo_wr_en;
     reg          beat_fifo_rd_en;
     wire         beat_fifo_full;
+    wire         beat_fifo_overflow;
+    wire         beat_fifo_underflow;
 
     xpm_fifo_sync #(
         .DOUT_RESET_VALUE    ("0"),
@@ -252,12 +350,12 @@ module PanoramaBase_DdrBlackFrame(
         .FIFO_WRITE_DEPTH    (128),
         .FULL_RESET_VALUE    (0),
         .PROG_EMPTY_THRESH   (8),
-        .PROG_FULL_THRESH    (96),
+        .PROG_FULL_THRESH    (64),
         .RD_DATA_COUNT_WIDTH (7),
         .READ_DATA_WIDTH     (512),
         .READ_MODE           ("fwft"),
         .SIM_ASSERT_CHK      (0),
-        .USE_ADV_FEATURES    ("0004"),
+        .USE_ADV_FEATURES    ("0303"),
         .WAKEUP_TIME         (0),
         .WR_DATA_COUNT_WIDTH (7),
         .WRITE_DATA_WIDTH    (512)
@@ -268,9 +366,11 @@ module PanoramaBase_DdrBlackFrame(
         .wr_en         (beat_fifo_wr_en),
         .full          (beat_fifo_full),
         .prog_full     (beat_fifo_prog_full),
+        .overflow      (beat_fifo_overflow),
         .rd_en         (beat_fifo_rd_en),
         .dout          (beat_fifo_dout),
         .empty         (beat_fifo_empty),
+        .underflow     (beat_fifo_underflow),
         .sleep         (1'b0),
         .injectsbiterr (1'b0),
         .injectdbiterr (1'b0)
@@ -348,7 +448,13 @@ module PanoramaBase_DdrBlackFrame(
                               (ir_sel_latched == 3'd4) ? irfb4_pulse : irfb5_pulse;
 
     //------------------------------------------------------------------------
-    // Copy / scan / arbiter state (ui_clk)
+    // Copy / scan / arbiter state (ui_clk).  Declared here, BEFORE the
+    // SRC_SEL generate block below, because Vivado's synthesis elaborator
+    // (unlike the simulator) binds an assign/reference inside a generate
+    // block to an implicit LOCAL net if the real module-scope declaration
+    // appears later in the file, rather than forward-referencing it -- so
+    // copy_active/fb_write_pending/copy_px_valid/copy_px_data/eo_frames_valid
+    // must all be declared before g_src_eostk/g_src_ramp use them.
     //------------------------------------------------------------------------
     reg        running;            // calibration complete, pipeline live
     reg        dbg_pulse_seen;
@@ -358,11 +464,18 @@ module PanoramaBase_DdrBlackFrame(
     reg        dbg_scan_issue_seen;
     reg        dbg_rddata_seen;
     reg        dbg_pixwrite_seen;
+    reg        dbg_beat_overflow;     // sticky: beat_fifo overflowed (should never happen post-fix)
+    // Sticky: MIG rdy was low on a launch cycle (proves the hold-FSM actually
+    // waited at least once). Has no logic consumer by design -- it exists for
+    // hardware bring-up ILA probing only, so mark_debug/dont_touch keep
+    // synthesis from trimming it as dead logic.
+    (* mark_debug = "true", dont_touch = "true" *)
+    reg        dbg_cmd_retry_seen;
 
-    // BRAM -> pack -> DDR write (copy)
+    // BRAM -> pack -> DDR write (copy).  fb_rd_en_d1/d2/fb_rd_busy live inside
+    // the g_src_ramp generate branch below (ramp-source-only implementation
+    // detail); copy_active/fb_write_pending/fb_pack_* are source-agnostic.
     reg        copy_active;
-    reg        fb_rd_en_d1, fb_rd_en_d2;
-    reg        fb_rd_busy;
     reg        fb_write_pending;
     reg [5:0]  fb_pack_count;
     reg [16:0] fb_burst_count;
@@ -383,6 +496,9 @@ module PanoramaBase_DdrBlackFrame(
     reg [6:0]  outstanding;
     reg [6:0]  outstanding_next;
 
+    // frame-boundary flush/resync: see flush_active state machine below
+    reg        flush_active;
+
     // beat_fifo -> pix_fifo unpack
     reg [511:0] unpack_shift;
     reg [5:0]   unpack_count;
@@ -395,34 +511,393 @@ module PanoramaBase_DdrBlackFrame(
 
     wire frame_edge = (ftog_sync != ftog_sync_d);
 
-    // Scan may issue a read this cycle
-    wire scan_ok = running && scan_active && c0_ddr4_app_rdy &&
-                   !beat_fifo_prog_full &&
-                   !pix_fifo_wr_rst_busy && (outstanding < MAX_OUTSTANDING);
-    // Copy may issue a write this cycle
-    wire write_ok = running && copy_active && fb_write_pending &&
-                    c0_ddr4_app_rdy && c0_ddr4_app_wdf_rdy;
+    //------------------------------------------------------------------------
+    // Shared interface between the SRC_SEL-selected copy-side pixel producer
+    // (g_src_eostk / g_src_ramp generate branches below) and the
+    // source-agnostic pack/write-launch back-end.
+    //------------------------------------------------------------------------
+    wire        copy_px_valid;    // pulses once per pixel ready to pack
+    wire [15:0] copy_px_data;     // packed {hi8,lo8} value, valid when copy_px_valid
+    wire        eo_frames_valid;  // all six EO tile buffers have captured >=1 frame
+
+    // Qualifies "begin a new copy": free-running on the display frame edge for
+    // the EO panorama (the tiles are always-fresh rolling captures and the
+    // ping-pong bank isolates tearing at the DDR level) once real camera data
+    // exists; unchanged PATTERN_TEST-or-live-IR-pulse trigger for the ramp.
+    wire copy_start_trig = (SRC_SEL == SRC_EOSTK)
+        ? (frame_edge && eo_frames_valid)
+        : ((PATTERN_TEST && frame_edge) || (!PATTERN_TEST && sel_pulse && ir_single_ui));
+
+    // Scan wants to issue a read this cycle (rdy handshake handled by the
+    // held-launch FSM below, not sampled here).
+    wire scan_want = running && scan_active &&
+                     !beat_fifo_prog_full &&
+                     !pix_fifo_wr_rst_busy && (outstanding < MAX_OUTSTANDING);
+    // Copy wants to issue a write this cycle.
+    wire write_want = running && copy_active && fb_write_pending;
+
+    //------------------------------------------------------------------------
+    // Copy-side pixel source (SRC_SEL-selected, compile-time).  Produces
+    // copy_px_valid/copy_px_data for the source-agnostic pack/write engine
+    // further below.  Only one of these two branches is ever elaborated.
+    //------------------------------------------------------------------------
+    generate
+    if (SRC_SEL == SRC_EOSTK) begin : g_src_eostk
+        //--------------------------------------------------------------------
+        // EO 3x2 panorama: six cameras, each decimated/cropped to a 640x480
+        // tile by the proven EO1920x1080_Decimate3_FrameBuffer (verbatim
+        // from the BRAM/URAM reference project, EOStackModules.v). The
+        // compositor below walks the composed 1920x960 canvas in raster
+        // order, pulling one pixel per cycle from whichever tile the current
+        // (x,y) falls into.
+        //
+        // CLOCKING (2026-07-07 retiming -- see docs/DDR_EO_PANORAMA_FIX_PLAN.md
+        // section 10 for the full measurement history): the walk and all six
+        // tile buffers run on rd_clk (74.25MHz, same as the donor project),
+        // NOT c0_ddr4_ui_clk (300MHz) as an earlier version had them. Root
+        // cause of that earlier version's unclosed timing: each tile is a
+        // ~142-block BRAM cascade (or 75-block URAM), and at this die's
+        // resulting BRAM occupancy, placement could not keep a cascade's
+        // blocks close enough together for their shared address/enable
+        // broadcast to route within one 3.332ns cycle -- confirmed because
+        // every failing endpoint lived in the mmcm_clkout0 clock group while
+        // every other domain had >+5ns slack, and because the donor project
+        // runs the IDENTICAL 142-RAMB36 tile shape at HIGHER chip-wide BRAM
+        // utilization and closes with +0.433ns to spare, entirely because it
+        // clocks those memories at 10ns instead of 3.332ns. The 300MHz domain
+        // never needed random access into the tiles -- only the composed
+        // pixel STREAM (55.3 Mpx/s average; a 1-px/cycle rd_clk walk yields
+        // 74.25 Mpx/s and finishes a full 1,843,200-px frame in 24.8ms,
+        // inside the 33.3ms/30Hz BT.1120 cadence) -- so the walk/tiles now
+        // hand pixels to the ui_clk pack engine through one small async FIFO
+        // instead of being clocked by ui_clk directly.
+        //--------------------------------------------------------------------
+        wire [19:0] eo0_rd_pixel, eo1_rd_pixel, eo2_rd_pixel, eo3_rd_pixel, eo4_rd_pixel, eo5_rd_pixel;
+        wire        eo0_frame_valid, eo1_frame_valid, eo2_frame_valid;
+        wire        eo3_frame_valid, eo4_frame_valid, eo5_frame_valid;
+        wire        eo_frames_valid_rd = eo0_frame_valid && eo1_frame_valid && eo2_frame_valid &&
+                                          eo3_frame_valid && eo4_frame_valid && eo5_frame_valid;
+
+        // copy_active (ui_clk) -> rd_clk: slow, monotonic-per-copy level,
+        // plain 2-FF sync is correct (same convention the renderer already
+        // uses for frame_valid elsewhere in this file).
+        reg copy_active_meta, copy_active_rd;
+        always @(posedge rd_clk) begin
+            if (!rst_n) begin
+                copy_active_meta <= 1'b0;
+                copy_active_rd   <= 1'b0;
+            end else begin
+                copy_active_meta <= copy_active;
+                copy_active_rd   <= copy_active_meta;
+            end
+        end
+
+        // eo_frames_valid (rd_clk, only ever rises once and stays high -- see
+        // EO1920x1080_Decimate3_FrameBuffer) -> ui_clk, same 2-FF convention.
+        reg eo_frames_valid_meta, eo_frames_valid_ui;
+        always @(posedge c0_ddr4_ui_clk) begin
+            if (ui_rst) begin
+                eo_frames_valid_meta <= 1'b0;
+                eo_frames_valid_ui   <= 1'b0;
+            end else begin
+                eo_frames_valid_meta <= eo_frames_valid_rd;
+                eo_frames_valid_ui   <= eo_frames_valid_meta;
+            end
+        end
+        assign eo_frames_valid = eo_frames_valid_ui;
+
+        // Copy-stream CDC FIFO wires (instance further below, after the walk
+        // state it's read alongside); declared here so copy_issue's
+        // reference to copyfifo_prog_full has an in-scope declaration above
+        // it textually.
+        wire        copyfifo_full, copyfifo_empty, copyfifo_prog_full;
+        wire        copyfifo_overflow, copyfifo_underflow;
+        wire [15:0] copyfifo_dout;
+        wire        copyfifo_rd_en;
+
+        //--------------------------------------------------------------------
+        // Raster walk state (rd_clk domain), increment-only counters -- NOT
+        // a multiply. An earlier version computed the tile address as
+        // "tile_y * 640 + tile_x" combinationally every cycle; that
+        // synthesized to a DSP48 multiplier whose output fanned out,
+        // unregistered, into the address/enable ports of all six tile
+        // memories -- fine at 74.25MHz, measured far too slow for 300MHz.
+        // row_base is updated only once per display row (960 times per
+        // frame, both giving it ample slack and, since it changes by a fixed
+        // +640 each time, needing only a plain adder); col_in_tile and
+        // row_in_tile only ever increment or reset -- also plain adders.
+        //--------------------------------------------------------------------
+        reg  [9:0]  col_in_tile;     // 0..639: X position within the current tile
+        reg  [1:0]  col_group;       // 0,1,2: which horizontal tile
+        reg  [8:0]  row_in_tile;     // 0..479: Y position within the current tile row-group
+        reg         row_group;       // 0,1: which vertical tile-group
+        reg  [18:0] row_base;        // row_in_tile*640, maintained by +640 accumulation
+        reg         copy_walk_done;  // this copy has issued all FRAME_PIXELS reads
+
+        wire        copy_issue     = copy_active_rd && !copy_walk_done && !copyfifo_prog_full;
+        wire [18:0] copy_tile_addr = row_base + {9'd0, col_in_tile};   // plain 19-bit adder
+
+        wire eo0_rd_en = copy_issue && !row_group && (col_group == 2'd0);
+        wire eo1_rd_en = copy_issue && !row_group && (col_group == 2'd1);
+        wire eo2_rd_en = copy_issue && !row_group && (col_group == 2'd2);
+        wire eo3_rd_en = copy_issue &&  row_group && (col_group == 2'd0);
+        wire eo4_rd_en = copy_issue &&  row_group && (col_group == 2'd1);
+        wire eo5_rd_en = copy_issue &&  row_group && (col_group == 2'd2);
+
+        wire col_last    = (col_in_tile == 10'd639);
+        wire colgrp_last = (col_group == 2'd2);
+        wire row_last    = (row_in_tile == 9'd479);
+
+        // Read latency reverted to the donor's proven default: the tile
+        // memories are back on the 10ns rd_clk domain, where 2 cycles is
+        // ample (routed reports at 300MHz measured the worst URAM-cascade
+        // read path at ~5.6ns total -- comfortably inside 10ns). Vivado's
+        // memory compiler may still print an advisory ("UltraRAM ...
+        // under-pipelined ... recommended 7 stages") -- that recommendation
+        // targets a 3.332ns clock; it does not apply to this 10ns domain and
+        // is expected/harmless.
+        localparam integer EO_READ_LATENCY = 2;
+
+        // Exactly one tile fits URAM at native 16-bit width (128 URAM288
+        // total / 75 needed per tile -- KU15P cannot fit a second); the
+        // other five explicitly use "block" (BRAM, matching the donor
+        // project's own default primitive) -- a deterministic split rather
+        // than Vivado's per-instance fallback heuristic, which over-
+        // subscribed URAM (6x75=450>128) when given extra pipeline headroom.
+        // u_eo_fb0 additionally reverts to the donor's own cam0 exception:
+        // with the tile read clock back on rd_clk, its write clock
+        // (eo0_wr_clk = eo0_pclk) and read clock are the SAME clock again,
+        // so it uses the direct (non-CDC-FIFO) write path -- an independent-
+        // clock async FIFO with identical wr/rd clocks trips a bitgen DRC
+        // (the donor project's own README documents hitting exactly this).
+        EO1920x1080_Decimate3_FrameBuffer #(
+            .MEMORY_PRIMITIVE_STR("ultra"), .READ_LATENCY(EO_READ_LATENCY),
+            .CLOCKING_MODE_STR("common_clock"), .FIFO_RELATED_CLOCKS(1), .USE_ASYNC_FIFO(0)
+        ) u_eo_fb0 (
+            .rst_n(rst_n), .wr_clk(eo0_wr_clk), .wr_hsync(eo0_wr_hsync), .wr_vsync(eo0_wr_vsync), .wr_pixel(eo0_wr_pixel),
+            .rd_clk(rd_clk), .rd_frame_start(1'b0), .rd_en(eo0_rd_en), .rd_addr(copy_tile_addr),
+            .rd_pixel(eo0_rd_pixel), .frame_valid(eo0_frame_valid));
+        EO1920x1080_Decimate3_FrameBuffer #(.MEMORY_PRIMITIVE_STR("block"), .READ_LATENCY(EO_READ_LATENCY)) u_eo_fb1 (
+            .rst_n(rst_n), .wr_clk(eo1_wr_clk), .wr_hsync(eo1_wr_hsync), .wr_vsync(eo1_wr_vsync), .wr_pixel(eo1_wr_pixel),
+            .rd_clk(rd_clk), .rd_frame_start(1'b0), .rd_en(eo1_rd_en), .rd_addr(copy_tile_addr),
+            .rd_pixel(eo1_rd_pixel), .frame_valid(eo1_frame_valid));
+        EO1920x1080_Decimate3_FrameBuffer #(.MEMORY_PRIMITIVE_STR("block"), .READ_LATENCY(EO_READ_LATENCY)) u_eo_fb2 (
+            .rst_n(rst_n), .wr_clk(eo2_wr_clk), .wr_hsync(eo2_wr_hsync), .wr_vsync(eo2_wr_vsync), .wr_pixel(eo2_wr_pixel),
+            .rd_clk(rd_clk), .rd_frame_start(1'b0), .rd_en(eo2_rd_en), .rd_addr(copy_tile_addr),
+            .rd_pixel(eo2_rd_pixel), .frame_valid(eo2_frame_valid));
+        EO1920x1080_Decimate3_FrameBuffer #(.MEMORY_PRIMITIVE_STR("block"), .READ_LATENCY(EO_READ_LATENCY)) u_eo_fb3 (
+            .rst_n(rst_n), .wr_clk(eo3_wr_clk), .wr_hsync(eo3_wr_hsync), .wr_vsync(eo3_wr_vsync), .wr_pixel(eo3_wr_pixel),
+            .rd_clk(rd_clk), .rd_frame_start(1'b0), .rd_en(eo3_rd_en), .rd_addr(copy_tile_addr),
+            .rd_pixel(eo3_rd_pixel), .frame_valid(eo3_frame_valid));
+        EO1920x1080_Decimate3_FrameBuffer #(.MEMORY_PRIMITIVE_STR("block"), .READ_LATENCY(EO_READ_LATENCY)) u_eo_fb4 (
+            .rst_n(rst_n), .wr_clk(eo4_wr_clk), .wr_hsync(eo4_wr_hsync), .wr_vsync(eo4_wr_vsync), .wr_pixel(eo4_wr_pixel),
+            .rd_clk(rd_clk), .rd_frame_start(1'b0), .rd_en(eo4_rd_en), .rd_addr(copy_tile_addr),
+            .rd_pixel(eo4_rd_pixel), .frame_valid(eo4_frame_valid));
+        EO1920x1080_Decimate3_FrameBuffer #(.MEMORY_PRIMITIVE_STR("block"), .READ_LATENCY(EO_READ_LATENCY)) u_eo_fb5 (
+            .rst_n(rst_n), .wr_clk(eo5_wr_clk), .wr_hsync(eo5_wr_hsync), .wr_vsync(eo5_wr_vsync), .wr_pixel(eo5_wr_pixel),
+            .rd_clk(rd_clk), .rd_frame_start(1'b0), .rd_en(eo5_rd_en), .rd_addr(copy_tile_addr),
+            .rd_pixel(eo5_rd_pixel), .frame_valid(eo5_frame_valid));
+
+        // {row_group,col_group} delayed by EO_READ_LATENCY (rd_clk domain),
+        // matching how long the EO tile buffers take to return the pixel at
+        // copy_tile_addr.
+        reg [3*EO_READ_LATENCY-1:0] eo_cam_pipe;
+        reg [EO_READ_LATENCY-1:0]   eo_use_pipe;
+        always @(posedge rd_clk) begin
+            if (!rst_n) begin
+                eo_cam_pipe <= {(3*EO_READ_LATENCY){1'b0}};
+                eo_use_pipe <= {EO_READ_LATENCY{1'b0}};
+            end else begin
+                eo_cam_pipe <= {eo_cam_pipe[3*EO_READ_LATENCY-4:0], row_group, col_group};
+                eo_use_pipe <= {eo_use_pipe[EO_READ_LATENCY-2:0], copy_issue};
+            end
+        end
+        wire        eo_cur_row_group = eo_cam_pipe[3*EO_READ_LATENCY-1];
+        wire [1:0]  eo_cur_col_group = eo_cam_pipe[3*EO_READ_LATENCY-2 -: 2];
+        wire [19:0] eo_cur_pixel   = (!eo_cur_row_group && eo_cur_col_group == 2'd0) ? eo0_rd_pixel :
+                                     (!eo_cur_row_group && eo_cur_col_group == 2'd1) ? eo1_rd_pixel :
+                                     (!eo_cur_row_group && eo_cur_col_group == 2'd2) ? eo2_rd_pixel :
+                                     ( eo_cur_row_group && eo_cur_col_group == 2'd0) ? eo3_rd_pixel :
+                                     ( eo_cur_row_group && eo_cur_col_group == 2'd1) ? eo4_rd_pixel : eo5_rd_pixel;
+
+        // EO1920x1080_Decimate3_FrameBuffer's rd_pixel is already restored to
+        // 20 bits ({Y[7:0],2'b00,C[7:0],2'b00}); re-extract the packed 16-bit
+        // {Y[7:0],C[7:0]} form the shared pack buffer expects everywhere else
+        // in this file, rather than modifying the proven donor module.
+        wire        copyfifo_wr_en = eo_use_pipe[EO_READ_LATENCY-1];
+        wire [15:0] copyfifo_din   = {eo_cur_pixel[19:12], eo_cur_pixel[9:2]};
+
+        always @(posedge rd_clk) begin
+            if (!rst_n || !copy_active_rd) begin
+                col_in_tile    <= 10'd0;
+                col_group      <= 2'd0;
+                row_in_tile    <= 9'd0;
+                row_group      <= 1'b0;
+                row_base       <= 19'd0;
+                copy_walk_done <= 1'b0;
+            end else if (copy_issue) begin
+                if (!col_last) begin
+                    col_in_tile <= col_in_tile + 10'd1;
+                end else begin
+                    col_in_tile <= 10'd0;
+                    if (!colgrp_last) begin
+                        col_group <= col_group + 2'd1;
+                    end else begin
+                        col_group <= 2'd0;
+                        if (!row_last) begin
+                            row_in_tile <= row_in_tile + 9'd1;
+                            row_base    <= row_base + 19'd640;
+                        end else begin
+                            row_in_tile <= 9'd0;
+                            row_base    <= 19'd0;
+                            if (!row_group)
+                                row_group <= 1'b1;
+                            else
+                                copy_walk_done <= 1'b1;
+                        end
+                    end
+                end
+            end
+        end
+
+        //--------------------------------------------------------------------
+        // Copy-stream CDC: rd_clk (74.25MHz walk/tiles) -> ui_clk (300MHz
+        // pack engine). This is the only new element of the 2026-07-07
+        // retiming -- everything above runs at rd_clk now; everything below
+        // (and the whole pack/scan/write-launch FSM outside this generate
+        // block) is unchanged, still ui_clk. (copyfifo_* wires are declared
+        // up near the walk-state section above, before copy_issue's own
+        // declaration references copyfifo_prog_full -- forward references
+        // within a single generate branch are ordinary two-pass Verilog
+        // elaboration and fine, but keeping declaration-before-use
+        // throughout avoids ever needing to reason about it again.)
+        //--------------------------------------------------------------------
+        xpm_fifo_async #(
+            .DOUT_RESET_VALUE    ("0"),
+            .ECC_MODE            ("no_ecc"),
+            .FIFO_MEMORY_TYPE    ("auto"),
+            .FIFO_READ_LATENCY   (0),
+            .FIFO_WRITE_DEPTH    (512),
+            .FULL_RESET_VALUE    (0),
+            .PROG_EMPTY_THRESH   (10),
+            .PROG_FULL_THRESH    (448),
+            .RD_DATA_COUNT_WIDTH (10),
+            .READ_DATA_WIDTH     (16),
+            .READ_MODE           ("fwft"),
+            .SIM_ASSERT_CHK      (0),
+            .USE_ADV_FEATURES    ("0303"),
+            .WAKEUP_TIME         (0),
+            .WR_DATA_COUNT_WIDTH (10),
+            .WRITE_DATA_WIDTH    (16),
+            .CDC_SYNC_STAGES     (2),
+            .RELATED_CLOCKS      (0)
+        ) u_copy_cdc_fifo (
+            .sleep         (1'b0),
+            .rst           (~rst_n),
+            .wr_clk        (rd_clk),
+            .wr_en         (copyfifo_wr_en),
+            .din           (copyfifo_din),
+            .full          (copyfifo_full),
+            .overflow      (copyfifo_overflow),
+            .wr_rst_busy   (),
+            .wr_ack        (),
+            .wr_data_count (),
+            .almost_full   (),
+            .prog_full     (copyfifo_prog_full),
+            .rd_clk        (c0_ddr4_ui_clk),
+            .rd_en         (copyfifo_rd_en),
+            .dout          (copyfifo_dout),
+            .empty         (copyfifo_empty),
+            .underflow     (copyfifo_underflow),
+            .rd_rst_busy   (),
+            .data_valid    (),
+            .rd_data_count (),
+            .almost_empty  (),
+            .prog_empty    (),
+            .injectsbiterr (1'b0),
+            .injectdbiterr (1'b0)
+        );
+
+        // ui_clk side: pop exactly one pixel per cycle whenever the pack
+        // engine is mid-copy, not itself stalled on a pending write, and the
+        // FIFO has data (FWFT: pop and consume in the same cycle). Idle-
+        // drain any residual pixels if a copy is aborted (e.g. calibration
+        // lost mid-copy) so a stale pixel can never bleed into the next
+        // copy; that path is expected to never fire in normal operation
+        // (pixel production/consumption are exactly conserved per copy), so
+        // it is latched into a sticky ILA-only diagnostic rather than wired
+        // to any functional signal.
+        wire copy_px_take   = copy_active && !fb_write_pending && !copyfifo_empty;
+        wire copy_idle_drain = !copy_active && !copyfifo_empty;
+        assign copyfifo_rd_en = copy_px_take || copy_idle_drain;
+        assign copy_px_valid  = copy_px_take;
+        assign copy_px_data   = copyfifo_dout;
+
+        (* mark_debug = "true", dont_touch = "true" *)
+        reg dbg_copyfifo_resid;
+        always @(posedge c0_ddr4_ui_clk) begin
+            if (ui_rst)
+                dbg_copyfifo_resid <= 1'b0;
+            else if (copy_idle_drain)
+                dbg_copyfifo_resid <= 1'b1;
+        end
+    end else begin : g_src_ramp
+        //--------------------------------------------------------------------
+        // Stage-A IR/ramp source (unchanged from the proven DDR bring-up):
+        // one outstanding BRAM read at a time, 2-cycle latency.  fb_rd_en and
+        // fb_rd_addr are declared at module scope (the unconditional IR
+        // capture buffers above reference them); this block is their only
+        // driver in this build.
+        //--------------------------------------------------------------------
+        assign eo_frames_valid = 1'b0;  // unused source in this build
+
+        reg fb_rd_busy;
+        reg fb_rd_en_d1, fb_rd_en_d2;
+
+        always @(posedge c0_ddr4_ui_clk) begin
+            if (ui_rst || !copy_active) begin
+                fb_rd_en    <= 1'b0;
+                fb_rd_en_d1 <= 1'b0;
+                fb_rd_en_d2 <= 1'b0;
+                fb_rd_addr  <= 19'd0;
+                fb_rd_busy  <= 1'b0;
+            end else begin
+                fb_rd_en    <= 1'b0;
+                fb_rd_en_d1 <= fb_rd_en;
+                fb_rd_en_d2 <= fb_rd_en_d1;
+
+                if (!fb_rd_busy && !fb_write_pending && (fb_rd_addr < FRAME_PIXELS)) begin
+                    fb_rd_en   <= 1'b1;
+                    fb_rd_busy <= 1'b1;
+                end
+
+                if (fb_rd_en_d2) begin
+                    fb_rd_busy <= 1'b0;
+                    fb_rd_addr <= fb_rd_addr + 19'd1;
+                end
+            end
+        end
+
+        assign copy_px_valid = fb_rd_en_d2;
+        assign copy_px_data  = PATTERN_TEST ? {fb_rd_addr[7:0], 8'h80}   // known raster ramp
+                                             : {sel_rd_pixel,    8'h80}; // live captured pixel
+    end
+    endgenerate
 
     always @(posedge c0_ddr4_ui_clk) begin
         if (ui_rst) begin
             running          <= 1'b0;
-            c0_ddr4_app_en   <= 1'b0;
-            c0_ddr4_app_hi_pri <= 1'b0;
-            c0_ddr4_app_wdf_end <= 1'b0;
-            c0_ddr4_app_wdf_wren <= 1'b0;
-            c0_ddr4_app_addr <= 29'd0;
-            c0_ddr4_app_cmd  <= 3'd0;
-            c0_ddr4_app_wdf_data <= BLACK_BURST;
-            c0_ddr4_app_wdf_mask <= 64'd0;
+            cmd_pend         <= 1'b0;
+            cmd_is_rd        <= 1'b0;
+            cmd_addr_q       <= 29'd0;
+            wdf_pend         <= 1'b0;
+            wdf_data_q       <= BLACK_BURST;
+            w_cmd_done       <= 1'b0;
+            w_wdf_done       <= 1'b0;
             pix_fifo_wr_en   <= 1'b0;
             pix_fifo_wr_data <= 16'd0;
             beat_fifo_wr_en  <= 1'b0;
             beat_fifo_rd_en  <= 1'b0;
-            fb_rd_en         <= 1'b0;
-            fb_rd_en_d1      <= 1'b0;
-            fb_rd_en_d2      <= 1'b0;
-            fb_rd_addr       <= 19'd0;
-            fb_rd_busy       <= 1'b0;
             fb_write_pending <= 1'b0;
             fb_pack_count    <= 6'd0;
             fb_burst_count   <= 17'd0;
@@ -442,7 +917,10 @@ module PanoramaBase_DdrBlackFrame(
             dbg_scan_issue_seen <= 1'b0;
             dbg_rddata_seen  <= 1'b0;
             dbg_pixwrite_seen<= 1'b0;
+            dbg_beat_overflow<= 1'b0;
+            dbg_cmd_retry_seen <= 1'b0;
             scan_active      <= 1'b0;
+            flush_active     <= 1'b0;
             rd_addr          <= BANK0_BASE;
             rd_issue_count   <= 17'd0;
             outstanding      <= 7'd0;
@@ -453,20 +931,9 @@ module PanoramaBase_DdrBlackFrame(
             ftog_sync_d      <= 1'b0;
         end else begin
             // --- default strobes (single-cycle) ---
-            c0_ddr4_app_en       <= 1'b0;
-            c0_ddr4_app_hi_pri   <= 1'b0;
-            c0_ddr4_app_wdf_wren <= 1'b0;
-            c0_ddr4_app_wdf_end  <= 1'b0;
-            c0_ddr4_app_addr     <= 29'd0;
-            c0_ddr4_app_cmd      <= 3'd0;
-            c0_ddr4_app_wdf_data <= BLACK_BURST;
-            c0_ddr4_app_wdf_mask <= 64'd0;
             pix_fifo_wr_en       <= 1'b0;
             beat_fifo_wr_en      <= 1'b0;
             beat_fifo_rd_en      <= 1'b0;
-            fb_rd_en             <= 1'b0;
-            fb_rd_en_d1          <= fb_rd_en;
-            fb_rd_en_d2          <= fb_rd_en_d1;
 
             // renderer frame-toggle CDC (rd_clk -> ui_clk)
             ftog_meta   <= renderer_frame_toggle;
@@ -476,40 +943,48 @@ module PanoramaBase_DdrBlackFrame(
             outstanding_next = outstanding;
 
             //----------------------------------------------------------------
-            // beat_fifo -> 32x16b unpack -> pix_fifo
+            // beat_fifo -> 32x16b unpack -> pix_fifo.  Suspended during a
+            // frame-boundary flush (stale beats are drained and discarded by
+            // the third branch instead of being unpacked into new pixels).
             //----------------------------------------------------------------
-            if ((unpack_count != 0) && !pix_fifo_full && !pix_fifo_wr_rst_busy) begin
+            if (!flush_active && (unpack_count != 0) && !pix_fifo_full && !pix_fifo_wr_rst_busy) begin
                 pix_fifo_wr_en   <= 1'b1;
                 pix_fifo_wr_data <= unpack_shift[15:0];
                 unpack_shift     <= {16'd0, unpack_shift[511:16]};
                 unpack_count     <= unpack_count - 6'd1;
                 dbg_pixwrite_seen<= 1'b1;
-            end else if (!beat_fifo_empty && !pix_fifo_prog_full && !pix_fifo_wr_rst_busy) begin
+            end else if (!flush_active && !beat_fifo_empty && !pix_fifo_prog_full && !pix_fifo_wr_rst_busy) begin
                 beat_fifo_rd_en <= 1'b1;
                 unpack_shift    <= beat_fifo_dout;
                 unpack_count    <= 6'd32;
+            end else if (flush_active && (outstanding == 7'd0) && !beat_fifo_empty) begin
+                beat_fifo_rd_en <= 1'b1;   // drain and discard stale beats
             end
 
-            // DDR read data returns -> push to beat_fifo, decrement outstanding
+            // DDR read data returns -> push to beat_fifo, decrement outstanding.
+            // Defensively gate on !beat_fifo_full (should be unreachable given
+            // MAX_OUTSTANDING+PROG_FULL_THRESH margin below the FIFO depth);
+            // the sticky overflow alarm below is the authoritative check.
             if (c0_ddr4_app_rd_data_valid) begin
-                beat_fifo_wr_en <= 1'b1;
                 dbg_rddata_seen <= 1'b1;
+                if (!beat_fifo_full)
+                    beat_fifo_wr_en <= 1'b1;
                 if (outstanding_next != 0)
                     outstanding_next = outstanding_next - 7'd1;
             end
 
+            // Sticky "should never happen" alarms (real logic regression if set).
+            if (beat_fifo_overflow || pix_fifo_overflow)
+                dbg_beat_overflow <= 1'b1;
+
             //----------------------------------------------------------------
-            // BRAM read result -> pack into the 512-bit burst buffer.
-            // fb_rd_addr is presented WITH fb_rd_en; the result is consumed two
-            // cycles later (READ_LATENCY=2) at fb_rd_en_d2, where we advance the
-            // address.  Each read yields exactly one packed pixel.
+            // Pack whatever the active source (RAMP/IR or EO panorama,
+            // SRC_SEL-selected generate branch above) produces into the
+            // 512-bit burst buffer.  Source-agnostic: 32 packed 16-bit pixels
+            // per burst regardless of where they came from.
             //----------------------------------------------------------------
-            if (fb_rd_en_d2) begin
-                fb_pack_buf[{fb_pack_count, 4'b0000} +: 16] <=
-                    PATTERN_TEST ? {fb_rd_addr[7:0], 8'h80}   // known raster ramp
-                                 : {sel_rd_pixel,    8'h80};  // live captured pixel
-                fb_rd_busy <= 1'b0;
-                fb_rd_addr <= fb_rd_addr + 19'd1;
+            if (copy_px_valid) begin
+                fb_pack_buf[{fb_pack_count, 4'b0000} +: 16] <= copy_px_data;
                 if (fb_pack_count == 6'd31)
                     fb_write_pending <= 1'b1;
                 else
@@ -522,6 +997,11 @@ module PanoramaBase_DdrBlackFrame(
                 //------------------------------------------------------------
                 copy_active   <= 1'b0;
                 scan_active   <= 1'b0;
+                flush_active  <= 1'b0;
+                cmd_pend      <= 1'b0;
+                wdf_pend      <= 1'b0;
+                w_cmd_done    <= 1'b0;
+                w_wdf_done    <= 1'b0;
                 pending_valid <= 1'b0;
                 frame_valid   <= 1'b0;
                 dbg_pulse_seen<= 1'b0;
@@ -531,6 +1011,8 @@ module PanoramaBase_DdrBlackFrame(
                 dbg_scan_issue_seen <= 1'b0;
                 dbg_rddata_seen  <= 1'b0;
                 dbg_pixwrite_seen<= 1'b0;
+                dbg_beat_overflow<= 1'b0;
+                dbg_cmd_retry_seen <= 1'b0;
                 wr_bank       <= 1'b0;
                 rd_bank       <= 1'b0;
                 ir_sel_latched<= ir_sel_ui;
@@ -544,73 +1026,95 @@ module PanoramaBase_DdrBlackFrame(
                 if (!copy_active)
                     ir_sel_latched <= ir_sel_ui;
 
-                if (sel_pulse)
+                if (copy_start_trig)
                     dbg_pulse_seen <= 1'b1;
 
                 //------------------------------------------------------------
-                // Start a copy on a fresh captured frame for the selected cam.
-                // Gated by ir_single_ui so we don't copy during EO/other modes,
-                // but an already-running copy is NEVER aborted by a mode change
-                // (that teardown was the old "committed-then-lost / cyan" bug).
+                // Start a copy once the active source (RAMP/IR or EO panorama,
+                // see copy_start_trig above) has a fresh frame ready.  An
+                // already-running copy is NEVER aborted by a mode/source
+                // change (that teardown was the old "committed-then-lost /
+                // cyan" bug) -- copy_start_trig is simply ignored while
+                // copy_active, so the in-flight copy always finishes.
                 //------------------------------------------------------------
-                // PATTERN_TEST: self-trigger one copy per display frame so the DDR
-                // write/scan/render path is exercised with a known ramp even with no
-                // camera on the forced slot.  Live mode triggers on the camera pulse.
-                if ((( PATTERN_TEST && frame_edge) ||
-                     (!PATTERN_TEST && sel_pulse && ir_single_ui)) && !copy_active) begin
+                if (copy_start_trig && !copy_active) begin
                     copy_active      <= 1'b1;
                     wr_addr          <= wr_bank_base;
-                    fb_rd_addr       <= 19'd0;
                     fb_pack_count    <= 6'd0;
                     fb_burst_count   <= 17'd0;
-                    fb_rd_busy       <= 1'b0;
                     fb_write_pending <= 1'b0;
                     fb_pack_buf      <= 512'd0;
-                end
-
-                //------------------------------------------------------------
-                // Issue BRAM reads, one outstanding at a time.
-                //------------------------------------------------------------
-                if (copy_active && !fb_rd_busy && !fb_write_pending && (fb_rd_addr < FRAME_PIXELS)) begin
-                    fb_rd_en   <= 1'b1;
-                    fb_rd_busy <= 1'b1;
                 end
 
                 if (fb_write_pending)
                     dbg_wpend_seen <= 1'b1;
 
                 //------------------------------------------------------------
-                // Frame-boundary commit (issues no DDR command): adopt a freshly
-                // completed bank and (re)start a scan of the read bank so the
-                // display refreshes every HD frame.
+                // Frame-boundary commit / flush-and-resync (issues no DDR
+                // command itself).  If the previous scan left anything
+                // in-flight or unconsumed (stuck/slow scan, leftover beats,
+                // partial unpack), do NOT commit on this edge: drain
+                // everything cleanly first and commit one frame later. Any
+                // transient stall then becomes a deterministic one-frame
+                // repeat of the last committed bank instead of a permanent
+                // stream desync.
                 //------------------------------------------------------------
-                if (frame_edge && !scan_active) begin
-                    if (pending_valid) begin
-                        rd_bank       <= pending_bank;
-                        pending_valid <= 1'b0;
-                        frame_valid   <= 1'b1;
-                        rd_addr       <= pending_bank ? BANK1_BASE : BANK0_BASE;
+                if (frame_edge) begin
+                    if (flush_active) begin
+                        // still cleaning up from the previous edge; retry the
+                        // commit on the next frame_edge instead.
+                    end else if (scan_active || (outstanding != 7'd0) ||
+                                 !beat_fifo_empty || (unpack_count != 6'd0)) begin
+                        scan_active  <= 1'b0;
+                        flush_active <= 1'b1;
+                        unpack_shift <= 512'd0;
+                        unpack_count <= 6'd0;
                     end else begin
-                        rd_addr       <= rd_bank_base;
-                    end
-                    if (frame_valid || pending_valid) begin
-                        scan_active     <= 1'b1;
-                        rd_issue_count  <= 17'd0;
-                        outstanding_next = 7'd0;
-                        unpack_count    <= 6'd0;
-                        unpack_shift    <= 512'd0;
+                        if (pending_valid) begin
+                            rd_bank       <= pending_bank;
+                            pending_valid <= 1'b0;
+                            frame_valid   <= 1'b1;
+                            rd_addr       <= pending_bank ? BANK1_BASE : BANK0_BASE;
+                        end else begin
+                            rd_addr       <= rd_bank_base;
+                        end
+                        if (frame_valid || pending_valid) begin
+                            scan_active     <= 1'b1;
+                            rd_issue_count  <= 17'd0;
+                            outstanding_next = 7'd0;
+                            unpack_count    <= 6'd0;
+                            unpack_shift    <= 512'd0;
+                        end
                     end
                 end
 
+                // Flush completes once every in-flight read has returned
+                // (outstanding drained naturally by the rd_data_valid logic
+                // above) and beat_fifo has been emptied by the unpack chain's
+                // drain branch above.
+                if (flush_active && (outstanding == 7'd0) && beat_fifo_empty) begin
+                    flush_active <= 1'b0;
+                end
+
                 //------------------------------------------------------------
-                // Single DDR command arbiter: read (scan) has priority over
-                // write (copy) so the display FIFO never underflows; the copy
+                // DDR command launch/retire (held-enable FSM).  Only one
+                // command is ever in flight; the next one is not launched
+                // until the previous command -- and, for writes, its write
+                // data -- has actually been accepted by the MIG (app_rdy /
+                // app_wdf_rdy sampled the SAME cycle as the held app_en /
+                // app_wdf_wren, per PG150).  Read (scan) has priority over
+                // write (copy) so the display FIFO never starves; the copy
                 // has a full frame of slack and fills the gaps.
                 //------------------------------------------------------------
-                if (scan_ok) begin
-                    c0_ddr4_app_en   <= 1'b1;
-                    c0_ddr4_app_cmd  <= 3'b001;           // read
-                    c0_ddr4_app_addr <= rd_addr;
+                if (cmd_pend && !c0_ddr4_app_rdy)     dbg_cmd_retry_seen <= 1'b1;
+                if (wdf_pend && !c0_ddr4_app_wdf_rdy) dbg_cmd_retry_seen <= 1'b1;
+
+                if (cmd_fire) cmd_pend <= 1'b0;
+                if (wdf_fire) wdf_pend <= 1'b0;
+                if (cmd_fire && !cmd_is_rd) w_cmd_done <= 1'b1;
+                if (wdf_fire)               w_wdf_done <= 1'b1;
+
+                if (read_retiring) begin
                     dbg_scan_issue_seen <= 1'b1;
                     outstanding_next = outstanding_next + 7'd1;
                     if (rd_issue_count == BEATS_TOTAL - 1) begin
@@ -620,16 +1124,12 @@ module PanoramaBase_DdrBlackFrame(
                         rd_issue_count <= rd_issue_count + 17'd1;
                         rd_addr        <= rd_addr + ADDR_STRIDE;
                     end
-                end else if (write_ok) begin
-                    c0_ddr4_app_en       <= 1'b1;
-                    c0_ddr4_app_cmd      <= 3'b000;       // write
-                    c0_ddr4_app_addr     <= wr_addr;
-                    c0_ddr4_app_wdf_data <= fb_pack_buf;
-                    c0_ddr4_app_wdf_wren <= 1'b1;
-                    c0_ddr4_app_wdf_end  <= 1'b1;
-                    dbg_grant_seen       <= 1'b1;
-                    fb_write_pending     <= 1'b0;
-                    fb_pack_count        <= 6'd0;
+                end
+
+                if (write_retiring) begin
+                    dbg_grant_seen   <= 1'b1;
+                    fb_write_pending <= 1'b0;
+                    fb_pack_count    <= 6'd0;
                     if (fb_burst_count == BEATS_TOTAL - 1) begin
                         // copy complete: publish this bank, flip write bank
                         copy_active   <= 1'b0;
@@ -642,21 +1142,104 @@ module PanoramaBase_DdrBlackFrame(
                         wr_addr        <= wr_addr + ADDR_STRIDE;
                     end
                 end
+
+                if (!issue_busy) begin
+                    if (scan_want) begin
+                        cmd_pend   <= 1'b1;
+                        cmd_is_rd  <= 1'b1;
+                        cmd_addr_q <= rd_addr;
+                    end else if (write_want) begin
+                        cmd_pend   <= 1'b1;
+                        cmd_is_rd  <= 1'b0;
+                        cmd_addr_q <= wr_addr;
+                        wdf_pend   <= 1'b1;
+                        wdf_data_q <= fb_pack_buf;
+                        w_cmd_done <= 1'b0;
+                        w_wdf_done <= 1'b0;
+                    end
+                end
             end
 
             outstanding <= outstanding_next;
         end
     end
 
+    // In the EO panorama build the copy trigger is free-running on
+    // eo_frames_valid rather than gated by ir_single_ui, so the "mode not
+    // enabled" pre-commit diagnostic no longer applies to any processed mode.
+    wire renderer_mode_enabled = (SRC_SEL == SRC_EOSTK) ? 1'b1 : ir_single_ui;
+
     //------------------------------------------------------------------------
-    // HD renderer (rd_clk).  Streams the committed frame into a centered
-    // 640x512 window; black elsewhere.  All ui_clk control inputs crossed via
-    // 2-FF synchronizers.
+    // Hardware bring-up ILA (2026-07-07, see docs/DDR_EO_PANORAMA_FIX_PLAN.md
+    // sections 13-15): probes the shared write/pack and read/unpack path to
+    // find the vertical-stripe corruption bug the SRC_RAMP bisection proved
+    // lives in this source-agnostic back end, not the EO-specific front end.
+    // Section 13/14's narrower probes (16-bit corners) proved the write side
+    // is clean and pinned the corruption to c0_ddr4_app_rd_data bits[15:0],
+    // but section 15's calibration margin dashboard showed byte0 (bits[7:0])
+    // has perfectly ordinary margins -- ruling out a per-byte analog issue
+    // and pointing instead at a specific time-slot/chunk within the BL8
+    // burst's 512-bit assembly. probe5/probe11/probe14 were widened from
+    // 16-bit corners to full 64-bit corners to check whether bytes 2-7 at
+    // the same chunk position as the already-known-bad byte0/1 are ALSO
+    // wrong (time-slot theory) or clean (byte-specific theory survives).
+    // First attempt concatenated two disjoint 64-bit ranges into one wide
+    // port ({sig[511:448], sig[63:0]}); Vivado's debug-probe auto-naming
+    // only produced a usable name for a 32-bit fragment of that (a MAP of
+    // "probe5[31:0]", confirmed via report_property on the hw_probe object
+    // -- the other 96 bits were simply inaccessible by name, not corrupt
+    // data, but unusable all the same). Fixed by giving each single
+    // CONTIGUOUS 64-bit range its own dedicated probe port (probe19-24)
+    // instead of concatenating disjoint ranges -- probe6/wr_addr[15:0] etc.
+    // (simple contiguous slices, no concatenation) always named correctly,
+    // which is what motivated this restructuring. probe5/11/14 reverted to
+    // their original 32-bit first+last-pixel form. Temporary bring-up
+    // instrumentation -- remove once root cause is fixed.
     //------------------------------------------------------------------------
-    PanoramaBase_HdDdrRenderer u_hd_renderer (
+    dbg_ila_0 u_dbg_ila_0 (
+        .clk     (c0_ddr4_ui_clk),
+        .probe0  (copy_px_valid),
+        .probe1  (copy_px_data),
+        .probe2  (fb_pack_count),
+        .probe3  (fb_write_pending),
+        .probe4  (write_retiring),
+        .probe5  ({wdf_data_q[511:496], wdf_data_q[15:0]}),
+        .probe6  (wr_addr[15:0]),
+        .probe7  ({cmd_pend, cmd_is_rd, c0_ddr4_app_rdy, wdf_pend, c0_ddr4_app_wdf_rdy}),
+        .probe8  (read_retiring),
+        .probe9  (rd_addr[15:0]),
+        .probe10 (c0_ddr4_app_rd_data_valid),
+        .probe11 ({c0_ddr4_app_rd_data[511:496], c0_ddr4_app_rd_data[15:0]}),
+        .probe12 (outstanding),
+        .probe13 ({beat_fifo_wr_en, beat_fifo_rd_en, beat_fifo_empty, beat_fifo_full}),
+        .probe14 ({beat_fifo_dout[511:496], beat_fifo_dout[15:0]}),
+        .probe15 (unpack_count),
+        .probe16 ({pix_fifo_wr_en, pix_fifo_wr_data}),
+        .probe17 ({scan_active, copy_active, flush_active, frame_edge}),
+        .probe18 ({dbg_beat_overflow, dbg_cmd_retry_seen}),
+        .probe19 (wdf_data_q[63:0]),
+        .probe20 (wdf_data_q[511:448]),
+        .probe21 (c0_ddr4_app_rd_data[63:0]),
+        .probe22 (c0_ddr4_app_rd_data[511:448]),
+        .probe23 (beat_fifo_dout[63:0]),
+        .probe24 (beat_fifo_dout[511:448])
+    );
+
+    //------------------------------------------------------------------------
+    // HD renderer (rd_clk).  Streams the committed frame into the SRC_SEL
+    // window (centered 640x512 for the ramp, top-aligned 1920x960 for the EO
+    // panorama); black elsewhere.  All ui_clk control inputs crossed via 2-FF
+    // synchronizers.
+    //------------------------------------------------------------------------
+    PanoramaBase_HdDdrRenderer #(
+        .SRC_W (SRC_W),
+        .SRC_H (SRC_H),
+        .X_OFF (WIN_X_OFF),
+        .Y_OFF (WIN_Y_OFF)
+    ) u_hd_renderer (
         .rst_n          (rst_n),
         .rd_clk         (rd_clk),
-        .mode_enabled   (ir_single_ui),
+        .mode_enabled   (renderer_mode_enabled),
         .dbg_pulse_seen (dbg_pulse_seen),
         .dbg_wpend_seen (dbg_wpend_seen),
         .dbg_grant_seen (dbg_grant_seen),
@@ -664,6 +1247,7 @@ module PanoramaBase_DdrBlackFrame(
         .dbg_scan_issue_seen(dbg_scan_issue_seen),
         .dbg_rddata_seen(dbg_rddata_seen),
         .dbg_pixwrite_seen(dbg_pixwrite_seen),
+        .dbg_beat_overflow(dbg_beat_overflow),
         .copy_active    (copy_active),
         .pending_valid  (pending_valid),
         .scan_active    (scan_active),
@@ -683,10 +1267,18 @@ endmodule
 
 //============================================================================
 // PanoramaBase_HdDdrRenderer
-//  BT.1120 1080p60 timing generator + centered 640x512 window scan-out.
+//  BT.1120 1080p60 timing generator + SRC_W x SRC_H window scan-out at
+//  (X_OFF, Y_OFF); black elsewhere.  Defaults match the Stage-A centered
+//  640x512 ramp/IR window; the parent overrides them per SRC_SEL (the EO
+//  panorama build passes SRC_W=1920, SRC_H=960, X_OFF=Y_OFF=0).
 //  frame_valid is the only control input; it is synchronized internally.
 //============================================================================
-module PanoramaBase_HdDdrRenderer(
+module PanoramaBase_HdDdrRenderer #(
+    parameter integer SRC_W = 640,
+    parameter integer SRC_H = 512,
+    parameter integer X_OFF = (1920 - 640) / 2,
+    parameter integer Y_OFF = (1080 - 512) / 2
+)(
     input  wire        rst_n,
     input  wire        rd_clk,
     input  wire        mode_enabled,
@@ -697,6 +1289,7 @@ module PanoramaBase_HdDdrRenderer(
     input  wire        dbg_scan_issue_seen,
     input  wire        dbg_rddata_seen,
     input  wire        dbg_pixwrite_seen,
+    input  wire        dbg_beat_overflow,
     input  wire        copy_active,
     input  wire        pending_valid,
     input  wire        scan_active,
@@ -717,11 +1310,16 @@ module PanoramaBase_HdDdrRenderer(
     localparam integer HD_TOTAL_H  = 1125;
     localparam integer SAV_WORDS   = 4;
     localparam integer EAV_WORDS   = 4;
-    localparam integer SRC_W       = 640;
-    localparam integer SRC_H       = 512;
-    localparam integer X_OFF       = (HD_ACTIVE_W - SRC_W) / 2;  // 640
-    localparam integer Y_OFF       = (HD_ACTIVE_H - SRC_H) / 2;  // 284
     localparam [19:0]  BLACK       = {10'd64, 10'd512};          // Y=64, C=512
+
+    // Vertical-blanking bookkeeping: pop and discard any pixels left in
+    // pix_fifo from the previous frame during the first 20 blank lines, then
+    // flip frame_toggle (which drives the ui_clk-side commit/flush) 25 blank
+    // lines before active video resumes -- giving the new scan's data time to
+    // clear the pix_fifo prefill threshold before line 0 needs it.
+    localparam integer VBLANK_DRAIN_START = HD_ACTIVE_H;         // 1080
+    localparam integer VBLANK_DRAIN_END   = HD_ACTIVE_H + 19;    // 1099
+    localparam integer FRAME_TOGGLE_LINE  = HD_ACTIVE_H + 19;    // 1099
 
     reg [11:0] h_cnt;
     reg [10:0] v_cnt;
@@ -729,7 +1327,7 @@ module PanoramaBase_HdDdrRenderer(
     reg [19:0] hd_dout_r;
     reg        stream_started;
     reg        frame_valid_meta, frame_valid_sync;
-    reg [10:0] dbg_meta, dbg_sync;
+    reg [11:0] dbg_meta, dbg_sync;
 
     wire cur_vblank = (v_cnt >= HD_ACTIVE_H);
     wire cur_sav    = (h_cnt < SAV_WORDS);
@@ -744,6 +1342,8 @@ module PanoramaBase_HdDdrRenderer(
     wire        cur_inside_window = cur_active &&
                                     (cur_x >= X_OFF) && (cur_x < (X_OFF + SRC_W)) &&
                                     (v_cnt >= Y_OFF) && (v_cnt < (Y_OFF + SRC_H));
+    wire        vblank_drain_window = (v_cnt >= VBLANK_DRAIN_START[10:0]) && (v_cnt <= VBLANK_DRAIN_END[10:0]);
+    wire        frame_toggle_line   = end_line && (v_cnt == FRAME_TOGGLE_LINE[10:0]);
 
     assign hd_de    = hd_de_r;
     assign hd_hsync = hd_hsync_r;
@@ -786,15 +1386,15 @@ module PanoramaBase_HdDdrRenderer(
             stream_started <= 1'b0;
             frame_valid_meta <= 1'b0;
             frame_valid_sync <= 1'b0;
-            dbg_meta <= 11'd0;
-            dbg_sync <= 11'd0;
+            dbg_meta <= 12'd0;
+            dbg_sync <= 12'd0;
         end else begin
             pix_rd_en <= 1'b0;
 
             // CDC: ui_clk frame_valid -> rd_clk
             frame_valid_meta <= frame_valid;
             frame_valid_sync <= frame_valid_meta;
-            dbg_meta <= {mode_enabled, dbg_pulse_seen, dbg_wpend_seen, dbg_grant_seen,
+            dbg_meta <= {dbg_beat_overflow, mode_enabled, dbg_pulse_seen, dbg_wpend_seen, dbg_grant_seen,
                          dbg_copydone_seen, dbg_scan_issue_seen, dbg_rddata_seen,
                          dbg_pixwrite_seen, copy_active, pending_valid, scan_active};
             dbg_sync <= dbg_meta;
@@ -808,7 +1408,18 @@ module PanoramaBase_HdDdrRenderer(
             if (!stream_started && !pix_prefill_empty)
                 stream_started <= 1'b1;
 
-            if (end_frame) begin
+            // Drain any pixels left over from the previous frame's stream
+            // (e.g. it starved or a mid-frame flush cut it short) before the
+            // next scan's data starts arriving, so a stale pixel can never
+            // bleed into the next frame's window.
+            if (vblank_drain_window && !pix_empty)
+                pix_rd_en <= 1'b1;
+
+            // Flip the commit/flush toggle (seen by the ui_clk side as
+            // frame_edge) 25 blank lines before active video resumes, instead
+            // of at the true end of frame -- this gives the freshly-started
+            // scan time to reach the pix_fifo prefill threshold before line 0.
+            if (frame_toggle_line) begin
                 frame_toggle   <= ~frame_toggle;
                 stream_started <= 1'b0;
             end
@@ -817,6 +1428,13 @@ module PanoramaBase_HdDdrRenderer(
                 hd_dout_r <= bt1120_trs_word(h_cnt[1:0], 1'b0, cur_vblank, 1'b0);
             end else if (cur_eav) begin
                 hd_dout_r <= bt1120_trs_word(cur_eav_idx, 1'b0, cur_vblank, 1'b1);
+            end else if (cur_active && dbg_sync[11]) begin
+                // Unmistakable full-active-region alarm: a FIFO overflow was
+                // detected (should be structurally unreachable after the A1-A3
+                // fixes). Placed after SAV/EAV so BT.1120 sync words are never
+                // corrupted, but ahead of the window content so it can't be
+                // missed. Does not gate on cur_inside_window on purpose.
+                hd_dout_r <= {10'd512, 10'd128};
             end else if (cur_inside_window && frame_valid_sync && stream_started && !pix_empty) begin
                 // {Y[9:0], C[9:0]} : grayscale luma, neutral chroma (C byte = 0x80)
                 hd_dout_r <= {{pix_dout[15:8], 2'b00}, {pix_dout[7:0], 2'b00}};

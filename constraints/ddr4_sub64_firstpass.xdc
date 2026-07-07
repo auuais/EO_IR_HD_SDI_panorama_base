@@ -154,5 +154,6 @@ set_property PACKAGE_PIN AP28 [get_ports {c0_ddr4_dq[60]}]
 set_property PACKAGE_PIN AL30 [get_ports {c0_ddr4_dq[61]}]
 set_property PACKAGE_PIN AP29 [get_ports {c0_ddr4_dq[62]}]
 set_property PACKAGE_PIN AN32 [get_ports {c0_ddr4_dq[63]}]
+
 set_property PACKAGE_PIN AN30 [get_ports {c0_ddr4_dqs_t[7]}]
 set_property PACKAGE_PIN AN31 [get_ports {c0_ddr4_dqs_c[7]}]
