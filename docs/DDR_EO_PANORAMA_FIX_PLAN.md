@@ -5,6 +5,14 @@ at the end of this file before reading the plan below as a to-do list)
 Project: `E:\Xylinx\EO_IR_HD_SDI_panorama_base\EO_IR_HD_SDI_panorama_base.xpr`
 Reference (proven, no-DDR) project: `E:\Xylinx\EO_IR_HDSDI_BRAM-URAM_FRAMESIZE`
 
+> **2026-07-07: for the CURRENT open bug (vertical read-corruption striping),
+> read `docs/DDR_READ_CORRUPTION_HANDOFF.md` instead of this file.** That is a
+> short, self-contained handoff with everything proven so far and the exact
+> next experiment to run. This document (sections 12-17 in particular) is the
+> full evidentiary history behind that handoff, useful for verification but
+> not required reading to continue the investigation. Sections 1-11 below
+> cover the EARLIER, already-fully-resolved DDR bring-up + timing/CDC work.
+
 This document is the work order for the implementing model. It contains: the
 observed symptoms, the verified root causes (with file/line evidence), and a
 staged fix plan whose end state is the **EO panorama (6-camera 3x2 stack)
@@ -1296,3 +1304,746 @@ changes at a *lower* `MAX_OUTSTANDING`, that would implicate pipelining
 depth specifically rather than burst-position timing in general -- a
 cheap (one-parameter, one-rebuild) experiment worth running before
 concluding this needs a hardware/calibration-level fix.
+
+---
+
+## 17. MAX_OUTSTANDING experiment: CONCLUSIVELY rules out pipelining depth (2026-07-07)
+
+Ran the experiment proposed at the end of §16: `MAX_OUTSTANDING` dropped
+from 16 to 4 (one-line change), rebuilt (routed WNS +0.149ns, 0 DRC
+errors), programmed, and recaptured with the same 25-probe ILA. Confirmed
+the parameter change genuinely took effect at the hardware level (max
+observed `outstanding` at any `rd_data_valid` event was exactly 4 in the
+new capture vs. 16 in the original, ruling out a no-op/optimized-away
+change).
+
+**First pass (aggregate per-pixel-position rate) looked ambiguous**:
+pixel-in-beat 0-3 wrong rates dropped from 100%/100%/100%/99.7% (depth
+<=16) to 90.0%/73.3%/84.2%/91.0% (depth<=4) -- a real but partial-looking
+reduction that could have been read as weak support for a pipelining
+contribution, or just capture-to-capture noise (different calibration
+run, different exact phase).
+
+**The decisive test was stratifying corruption rate by each read's own
+`outstanding` depth at the moment it returned data, within each single
+capture** (this avoids any cross-capture confound entirely -- both
+captures span a range of depths from 1 up to their cap, all under
+identical hardware/calibration conditions in one continuous run).
+Result, "any of pixels 0-3 wrong" per depth bucket:
+
+| depth | capture4 (cap=16) | capture5 (cap=4) |
+|---|---|---|
+| 1 | 19/19 (100%) | 43/43 (100%) |
+| 2 | 19/19 (100%) | 67/67 (100%) |
+| 3 | 19/19 (100%) | 125/125 (100%) |
+| 4 | 19/19 (100%) | 76/76 (100%) |
+| 5-16 | 100% at every depth checked (2 to 93 samples each) | -- |
+
+**100% corruption at every single outstanding depth from 1 to 16,
+including depth=1 (a single isolated read in flight, zero pipelining
+overlap whatsoever).** This is fully conclusive: pipelining/outstanding
+depth is not a factor at all, in either direction. The earlier "partial
+reduction" in the aggregate per-position numbers was capture-to-capture
+noise in *which* of the 4 positions happens to come out individually
+correct on a given beat, not a real effect of `MAX_OUTSTANDING` -- the
+beat-level corruption rate (at least one of the first 4 pixels wrong) is
+uniformly 100% regardless.
+
+**Conclusion: this is not fixable by any read-pipelining/outstanding-
+count adjustment in this RTL.** `MAX_OUTSTANDING` reverted to 16 (no
+benefit at 4, and 16 is better for sustained read throughput). The
+first-beat DQS-gate/preamble-timing explanation from §16 is now the
+leading theory with no remaining RTL-side alternative to check -- every
+angle reachable from this codebase's own logic (write path, handshake
+FSM, beat_fifo, unpack, addressing arithmetic, pipelining depth) has been
+directly hardware-verified as either correct or not the cause. Remaining
+avenues are hardware/calibration-level: Xilinx AR database lookup for
+this exact symptom (proper web/support access, not available in this
+session), MIG calibration parameter retuning, testing repeatability
+across a real power cycle/temperature, or a pragmatic RTL-side mitigation
+(mask/interpolate the deterministically-known-bad first 4 pixels of
+every 32-pixel beat) if root-causing further is not worth pursuing.
+
+---
+
+## 18. User-reported geometry anomaly: targeted logic review (2026-07-07)
+
+The user compared the first EO-build hardware photo against the current
+ramp-build photo and raised a specific concern: the EO build did not
+appear to show a 3x2 grid of six distinct 640x480 tiles -- it looked
+like two cameras' content (their read: cam3/cam4) repeated across the
+full 1920x1080, and the ramp build's window content appears scattered/
+displaced. Their hypothesis: **a logic/geometry error exists in addition
+to the data corruption.** This section records a targeted line-by-line
+review of every mechanism that could produce wrong geometry, what was
+found clean, what NEW defects were found, and what remains genuinely
+unexplained.
+
+### 18.1 Verified CLEAN (line-by-line, this session)
+
+1. **Top-level EO wiring**: six distinct receiver instances
+   (`u_eo0`..`u_eo5`, `KintexTop_EO_IR_HD_SDI_panorama_base.v` lines
+   169-213) on six distinct camera pin sets (CAM0..CAM5), wired 1:1 into
+   `PanoramaBase_DdrBlackFrame`'s `eo0_*`..`eo5_*` ports (lines 273-296).
+   No duplication, no crossed wires.
+2. **Tile decimation geometry**: `EO1920x1080_Decimate3_FrameBuffer`
+   produces exactly 640x480 despite the misleading "Decimate3" name:
+   horizontal = 1440-px crop starting at camera x=240, keeping 4
+   chroma-PAIRS per 18 px (8 of 18 pixels -> 1440*8/18 = 640, pairs kept
+   whole to preserve Cb/Cr cadence); vertical = 4 lines of every 9
+   (1080*4/9 = 480). Write addressing is strictly sequential 0..307199
+   with a frame-start reset; `frame_valid` rises only after the final
+   address is written.
+3. **Compositor walk order**: emits the true raster of the 1920x960
+   composite (for each output row: tile-left 640 px, tile-mid 640 px,
+   tile-right 640 px), row_group 0 = tiles 0/1/2, row_group 1 = tiles
+   3/4/5. Tile-select read-enables, the EO_READ_LATENCY=2 alignment
+   pipes (`eo_cam_pipe`/`eo_use_pipe`), and the output mux are all
+   consistent; stall behavior under `copyfifo_prog_full` preserves
+   tag/data alignment (XPM sdpram output holds when `enb`=0).
+4. **Renderer window math**: 1:1 source-to-display mapping,
+   EO window 1920x960 at (0,0) with rows 960-1079 forced black, ramp
+   window 640x512 centered. Window position comes solely from free-
+   running `h_cnt`/`v_cnt` -- pixel DATA cannot move the window.
+5. **Pixel-count conservation**: walk emits exactly FRAME_PIXELS per
+   copy; pack consumes exactly that; scan issues exactly BEATS_TOTAL
+   beats; unpack pushes exactly 32 px/beat; renderer pops at most one
+   per in-window cycle, and the vblank drain plus prefill logic resets
+   FIFO occupancy between frames.
+
+**Conclusion: no mechanism exists in the composite/copy/render RTL that
+can duplicate one camera across multiple tile positions or resize/move
+the grid.** If the live display genuinely shows duplicated cameras (see
+18.4 for the decisive check), the cause is upstream of these blocks
+(receivers) or is a perception artifact of the scrambling described
+next.
+
+### 18.2 FOUND: underrun slip-amplification explains "geometry scrambling" without a geometry bug
+
+The renderer's in-window underrun policy is: if `pix_empty` on an
+in-window cycle, paint a diagnostic color and do NOT pop. The un-popped
+pixel is then consumed on a LATER in-window cycle -- so a single
+transient FIFO-empty event shifts ALL remaining frame content right/down
+by one position, and N stall cycles shift it by N. Nothing re-anchors
+the stream until the next frame's vblank drain + prefill. **Any
+transient starvation therefore geometrically scrambles the remainder of
+that frame** -- displaced blocks, full-width bands of diagnostic color
+(post-startup the sticky bits reduce the palette to: green = scan
+active but FIFO empty, red = starved with scan done, orange = prefill
+not reached), and content appearing to repeat (adjacent stream segments
+re-shown at different offsets across starvation/recovery cycles). The
+donor project has no such elasticity (fixed BRAM line addressing, no
+stream FIFO), which is why this failure LOOK is new to the DDR path.
+This mechanism can plausibly produce the user's "two cameras repeated
+full-screen" reading from a composite that is actually correct in DDR:
+massive accumulated slip pushes lower-half content (cams 3/4/5) up into
+most of the visible window, repeatedly.
+
+Note this mechanism is an AMPLIFIER, not a root cause: something must
+first cause mid-frame starvation (or data loss) at a rate the 8192-deep
+pix_fifo can't absorb. With ~5x average bandwidth headroom, sustained
+starvation should not happen -- unless the §16 read corruption is
+accompanied by occasional dropped/extra `rd_data_valid` events, or the
+flush path (frame_edge with residue -> discard beats -> one full
+diagnostic frame -> repeat) is cycling. The §18.4 experiments observe
+this directly.
+
+### 18.3 THEORY, THEN RETRACTED: eo0 tile write path clock-tree hazard
+
+**Original theory (below), and why it was wrong, both kept for the
+record -- see §18.6 for the correction and what it actually tells us.**
+
+`PanoramaBase_DdrBlackFrame.rd_clk` = top-level `CAM0_PCLK_bufg` =
+BUFG(CAM0_PCLK_ibuf) (`KintexTop...v` lines 108-111, 246). But
+`eo0_wr_clk` = `eo0_pclk` = the cam0 receiver's `IEG0_PCLK` output,
+which inside `Kintex_top_0cam_1ch` (`KintexTop_0cam_ch1_0108.v` lines
+44-60, 162) is a **plain wire alias of the un-BUFG'd IBUF net** (`wire
+CAM0_PCLK_bufg = CAM0_PCLK;` -- the BUFG is commented out; the Korean
+comment says "currently IBUF only"). So the §10 `u_eo_fb0`
+"same clock" exception (`USE_ASYNC_FIFO(0)`/`common_clock`) actually
+crosses from IBUF-net-clocked write logic into BUFG-tree-clocked memory
+-- same frequency, two different distribution trees, arbitrary fixed
+skew. STA does time it (same primary clock through both), but the
+design-wide worst hold slack is **WHS +0.011ns** -- looked like the
+razor-thin-hold signature this structure produces. Proposed fix at the
+time: switch `u_eo_fb0` to `USE_ASYNC_FIFO(1)`/`independent_clock` like
+the other five tiles.
+
+**This was implemented and immediately disproven by hardware, not just
+re-reasoned about.** Rebuilding with the "fix" applied failed
+implementation with `ERROR: [DRC AVAL-245] Independent_clock_check`,
+Vivado stating outright about this exact RAM's clock pins: **"the two
+clock pins... are driven by the same driver."** I.e. Vivado's actual
+synthesized/placed netlist merges `eo0_wr_clk` and `rd_clk` onto the
+same clock net -- almost certainly clock-network optimization
+recognizing them as electrically equivalent once fully traced, contrary
+to the RTL-source-level reading above (which only looked at whether an
+explicit `BUFG` primitive appeared in each path, not at how synthesis
+ultimately resolves clock identity). **The original `USE_ASYNC_FIFO(0)`/
+`common_clock` exception was correct; it has been reverted back.** See
+§18.6 for what this DOES still tell us, and the general lesson: trust a
+DRC/implementation result over eye-level net-tracing for clock-identity
+questions specifically -- Vivado's clock network optimizer can and does
+merge nets that read as distinct in the RTL source.
+
+### 18.4 Decisive experiments (updated priority order)
+
+1. **Renderer-side rd_clk ILA** (NEW, now top priority -- directly
+   answers the user's geometry question): a second ILA clocked on
+   `rd_clk` probing `h_cnt`, `v_cnt`, `pix_empty`, `pix_rd_en`,
+   `stream_started`, `flush_active` (sync'd), `frame_valid_sync`, and
+   `hd_dout_r[19:10]`. One capture spanning a few lines answers: does
+   the renderer emit content at the correct window positions (kills or
+   confirms any remaining geometry doubt at the point of emission), and
+   how often/where does `pix_empty` fire in-window (quantifies the slip
+   of §18.2)? If the emitted geometry is correct at hd_dout while the
+   monitor shows displaced content, the problem is downstream of this
+   module (SDI wrapper/monitor/capture chain).
+2. **Write-idle corruption capture** (unchanged from handoff §4.1):
+   trigger on reads with `copy_active`==0 to test the bank-conflict
+   theory. Both existing captures only ever sampled reads concurrent
+   with writes.
+3. **Live-monitor checks (user, no rebuild)**: (a) in EO mode, are the
+   bottom 120 rows solid black? The RTL guarantees them black; if the
+   live monitor (not a cropped photo) shows content there, the running
+   bitstream is not the expected build or something is very wrong
+   downstream. (b) step through EO-single modes 0x07-0x0C and confirm
+   all six cameras show distinct live scenes (verifies receivers).
+4. ~~eo0 clock fix~~ -- **retracted, do NOT do this** (§18.3/§18.6): tried,
+   hardware DRC proved the theory wrong, reverted.
+
+### 18.5 New data fingerprint from the corrupted values (for whoever chases the PHY theory)
+
+Decoding the wrong first-chunk values against expected (both captures):
+only 5-6% are byte-swapped forms; 19-28% preserve their intra-beat
+pixel index (above the 3% chance rate but a minority). The informative
+part: the misplaced ramp bytes' offsets from expected cluster at
+**whole-beat multiples** (capture 5: +32 dominant, then 64/96/128/160)
+or at **-1 mod 32** (capture 4: 191/95/223/127/63 all = 32k+31). I.e.
+the first transfer's returned bytes are predominantly STALE DATA FROM
+NEARBY BEATS at beat-aligned offsets -- not a coherent shift of the
+stream, and not noise. This is consistent with the first DRAM beat
+being captured from stale bus/FIFO state (DQS-gate opening one beat
+early against residual data), and is a concrete fingerprint to match
+against Xilinx Answer Records.
+
+### 18.6 What the eo0 clock DRC actually tells us, and the corrected next step
+
+Two useful things survive the §18.3 retraction:
+
+1. **`eo0_wr_clk` and `rd_clk` are confirmed the same clock, hardware-
+   verified, not just assumed.** This means the WHS +0.011ns razor-thin
+   hold slack is NOT explained by a cross-clock-tree skew on this path
+   (there is no crossing here at all -- same net, zero skew by
+   definition). Whatever produces that thin hold margin is something
+   else in the design; it does not need (and must not get) a CDC fix on
+   tile 0's write path specifically. Do not re-attempt this "fix".
+2. **General lesson for this codebase**: Vivado's clock network
+   optimizer can merge nets that read as electrically distinct at the
+   RTL source level (explicit `BUFG` vs. none) if it determines they are
+   equivalent. When a clock-identity question matters for correctness
+   (CDC FIFO needed or not), a `DRC AVAL-245`/`Independent_clock_check`
+   result from a real implementation run is authoritative; net-tracing
+   by eye through module hierarchy is not sufficient on its own.
+
+Net effect on the geometry investigation: §18.3 does not explain the
+user's reported cam3/cam4 duplication (nor did it ever -- it only ever
+affected tile 0, and the "fix" attempt is now known to have been based
+on a false premise). The corrected priority order is exactly §18.4
+items 1-3 (renderer-side ILA, the two zero-rebuild live-monitor checks,
+and the write-idle DDR-side capture) -- there is no tile-0-specific
+clock fix to apply first anymore.
+
+### 18.7 dbg_ila_1 (renderer-side ILA) added and captures run
+
+Implemented §18.4 item 1: a second ILA core (`dbg_ila_1`,
+`xilinx.com:ip:ila:6.2`, 11 probes) clocked on `rd_clk`, instantiated
+inside `PanoramaBase_HdDdrRenderer` (only place these signals are
+directly visible) as `u_dbg_ila_1`, probing `pix_empty`, `pix_rd_en`,
+`stream_started`, `frame_valid_sync`, `cur_active`, `cur_inside_window`,
+`h_cnt`, `v_cnt`, `hd_dout_r`, `dbg_sync`, and a dedicated trigger wire
+`dbg_starve_event = cur_inside_window && pix_empty && stream_started`
+(triggering on the compound condition directly in RTL rather than
+relying on multi-probe AND semantics in the ILA's basic trigger mode,
+to avoid any ambiguity).
+
+Combining both ILA cores with the full 6-tile EO build over-budgeted
+BRAM (`DRC UTLZ-1`: needs 1040 RAMB36E2, device has 984) -- `dbg_ila_0`
+(25 probes, ~200 bits/sample) is the dominant consumer; its capture
+depth was cut 16384->2048 (still ample for the write-idle correlation
+test) and `dbg_ila_1`'s cut 16384->8192 (kept deeper since it's
+triggered on a possibly-rare event and needs post-trigger context),
+bringing synth-estimated RAMB36E2 to 727/984 with comfortable margin.
+Standard gotcha repeated: after the depth change, `dbg_ila_0_synth_1`
+and `dbg_ila_1_synth_1` (auto-created IP-level synth runs) needed an
+explicit `reset_run` before the next top-level synth picked up the new
+config -- same class of stale-IP-netlist trap as documented in §16.
+
+### 18.8 Compositor tile-select ILA (`dbg_ila_2`): DEFINITIVELY correct on hardware
+
+While the eo0-clock-fix rebuild cycle (§18.3/§18.6) was in progress, the
+user shared a live hardware photo of the EO build and a specific reading
+of it: top half of the panorama appeared to cycle cam0/cam1/cam0/cam1
+(partial) rather than cam0/cam1/cam2, i.e. the third (rightmost) tile in
+each row-group never visible; same pattern cam3/cam4/cam3/cam4 on the
+bottom half, cam5 never visible. This is a much more specific claim than
+"noisy/striped" -- it reads as a genuine tile-select/walk-order defect,
+which would be a NEW bug beyond the already-confirmed DDR read
+corruption, and one the §18.1 source review (however carefully done)
+would not be the last word on given real hardware had already
+overturned one source-level theory this same session (§18.3/§18.6).
+
+Added a third ILA (`dbg_ila_2`, 12 probes, depth 16384) directly inside
+the `g_src_eostk` generate block (rd_clk domain, same clock as the walk
+itself) probing `copy_issue`, `copy_active_rd`, `col_group`, `row_group`,
+`col_in_tile`, `row_in_tile`, `copy_walk_done`, `eo_cur_col_group`,
+`eo_cur_row_group`, `copyfifo_wr_en`, `copyfifo_din`, and all six
+`eo{0..5}_rd_en` signals concatenated into one probe -- i.e. everything
+needed to directly watch which physical tile gets selected, cycle by
+cycle, with no inference required. Triggered on `copy_issue` (fires on
+essentially every cycle of an active copy), giving 16384 samples of
+dense walk activity.
+
+**Result: the walk is correct.** `col_group` cycles 2->0->1->2->0->1...
+in clean 640-cycle runs (`col_in_tile` sweeping 0..639 exactly once per
+`col_group` value before advancing), `row_in_tile` increments by exactly
+1 at each full-row wraparound, and each `eo{k}_rd_en` fires precisely
+when `copy_issue && row_group==<expected> && col_group==<expected>` --
+matched by direct inspection, not inference. This capture happened to
+land entirely within `row_group==1` (bottom half, tiles 3/4/5), and
+within that half all three of `eo3_rd_en`/`eo4_rd_en`/`eo5_rd_en` were
+observed firing at their correct, distinct 640-column windows (5760,
+5166, and 5458 assertions respectively out of 16384 samples -- all
+three tiles genuinely visited, none skipped). **This directly disproves
+a col_group-stuck-cycling or tile-select-mux bug as the explanation for
+the user's report** -- the walk order and tile selection are correct on
+real hardware, not just in source review.
+
+### 18.9 Renderer starvation check (`dbg_ila_1`): zero events in a substantial sample
+
+With the walk cleared, re-armed `dbg_ila_1` (already present in the same
+bitstream) to directly test the §18.2 underrun-slip theory. The original
+plan (trigger on the starvation event itself) was abandoned after a long
+unproductive wait -- the user asked to kill it and pivot to the
+compositor check instead, which turned out to be the right call.
+Re-triggered instead on `cur_active==1` (fires almost immediately) to
+capture a large window of *ordinary* operation and count starvation
+directly in analysis, rather than gambling on a possibly-rare/absent
+event to arm the trigger.
+
+**Result: zero starvation.** Across 8192 samples (~4 complete display
+lines, h_cnt sweeping the full 0-2199 range multiple times, comfortably
+spanning multiple `col_group` transitions within the window): `pix_empty`
+was 0 on every single sample, `dbg_starve_event` (the in-window-and-
+streaming-and-empty compound condition) never fired once, and `dbg_sync`
+(the synced ui_clk-side status word) held a constant, healthy value
+throughout (no overflow, `scan_active`/`copy_active` both correctly
+asserted, no anomaly bits set). The actual `hd_dout_r` values captured
+in-window vary continuously in a way consistent with real image content,
+not a frozen or diagnostic-color output.
+
+This is a substantial (not exhaustive) negative result: it covers only
+~4 of 1080 display lines, so it does not prove starvation never happens
+anywhere in the frame -- but it directly contradicts "constant/frequent"
+underrun as an explanation, since the sampled window spans deep into
+col_group-cycling territory (exactly where the user's reported symptom
+would need to originate) without a single stall.
+
+### 18.10 Net assessment after both hardware checks
+
+Two independent, targeted hardware captures (not source review) have
+now each looked for a specific candidate explanation of the user's
+reported segment-duplication and found neither present:
+
+- Compositor tile-select walk: **provably correct** (§18.8).
+- Renderer in-window starvation: **not observed** in a substantial
+  sample (§18.9).
+
+Neither of the two most plausible NEW structural-bug theories survived
+direct hardware measurement. The remaining, evidence-consistent
+explanation is that the ALREADY-CONFIRMED DDR read corruption (§16:
+the entire first 64-bit/4-pixel chunk of every 32-pixel DDR burst wrong,
+~100% of bursts, ~12.5% of all pixels, uniform across the whole frame
+regardless of source) is simply far more visually disruptive on real,
+detailed camera content than it was on the smooth synthetic ramp --
+dense, structured corruption at this rate on real imagery, viewed
+through a compressed photo of a monitor, could plausibly be misread as
+"cameras repeating/missing" even though the underlying composite order
+is correct. This is the leading explanation given everything checked so
+far, but it has NOT been directly proven (e.g. by showing the artifact
+disappears when the known-corrupted pixels are masked) -- treat it as
+the current best-supported hypothesis, not a closed question. See
+handoff document section 4.2c for the concrete next check.
+
+### 18.11 Cam0-only diagnostic source added (user's idea): removes the compositor from the picture entirely
+
+User proposal: to remove any remaining ambiguity about the compositor/
+tile-select mux, stream ONLY cam0's 640x480 decimated tile through DDR
+-- no compositor, no 6-way mux, no col_group/row_group cycling -- while
+still using real live camera content (unlike SRC_RAMP) and the real
+`EO1920x1080_Decimate3_FrameBuffer` decimation/CDC machinery (unlike a
+synthetic pattern). Implemented as a third `SRC_SEL` option, `SRC_EO0`
+(`localparam [1:0]`, widened from the previous 1-bit RAMP/EOSTK
+encoding): a new `g_src_eo0` generate branch, a trimmed copy of
+`g_src_eostk`'s machinery (CDC synchronizers, copy CDC FIFO, ui_clk-side
+pop -- all reused verbatim) with the 6-way tile-select removed and
+replaced by a trivial single-tile walk (`col_in_tile`/`row_in_tile`/
+`row_base`, no `col_group`/`row_group` at all). Window: 640x480 centered
+(mirrors the ramp window's centering convention). Only `u_eo_fb0` is
+instantiated (pinned to URAM as before) -- no `dbg_ila_2` in this build
+since none of the compositor signals it probes exist in this branch.
+Routed clean: WNS +0.348ns, 0 DRC errors, 75/128 URAM + 11/984 RAMB36E2
+(confirms the much smaller footprint expected from dropping 5 of 6 tile
+buffers and the whole compositor).
+
+### 18.12 DECISIVE: the same corruption signature appears on real EO camera data, with zero compositor involvement
+
+Captured `dbg_ila_0` (unchanged 25-probe DDR-side ILA, still present and
+valid for this build) triggered on `write_retiring`, queue-correlated
+the read side as in section 16. Real camera pixel data has no synthetic
+formula for "expected value" the way the ramp test did, so exact
+per-pixel correctness can't be checked the same way -- but the
+first-vs-last-chunk STRUCTURAL signature from section 16 needs no
+ground truth to detect, and it is directly, visibly present:
+
+The first three consecutive read beats (`rd_addr` = 0x0000, 0x0008,
+0x0010 -- the very start of a scan pass) returned the **exact same**
+64-bit first-chunk value, `0x4e7d857e50799a7c`, three times in a row
+(a fourth, `0x4475857e50799a7c`, differs by only one byte). Meanwhile
+the last-chunk values for those same three beats vary smoothly and
+plausibly (`0x6b816c7e6b81717e`, `0x65816c7c7281717d`,
+`0x758175807481737d`, ...), exactly as expected for real, continuously-
+varying image content. Three independent DDR beats returning bit-
+identical 64-bit "pixel" data in their first chunk while the last chunk
+correctly varies is statistically impossible for genuine content -- this
+is the corruption, directly visible with no formula required, and it
+occurs with **zero compositor/tile-select logic anywhere in this
+build**.
+
+Beats beyond the first ~4 do not show further *exact* repeats in this
+capture (127/129 unique first-chunk values overall) -- but this should
+NOT be read as "corruption stops after the first few beats." Unlike the
+ramp test's synthetic, sharply-stepped values (where any deviation from
+the exact expected value is glaringly obvious), real image content is
+naturally smooth and self-similar between nearby pixels -- a "stale
+data borrowed from a nearby beat" substitution (the section 16/18.5
+fingerprint) can easily fall within the natural variability of
+neighboring real pixels and simply not LOOK wrong without ground truth
+to compare against. The corruption mechanism is almost certainly still
+operating near its previously-established ~100%-of-beats rate; it is
+just far less visually/statistically detectable on smooth real content
+than on the ramp's sharp synthetic steps -- which is itself a plausible,
+even likely, explanation for why the artifact is much more visually
+disruptive on real EO camera content (with edges and fine detail) than
+it appeared on the smooth ramp test.
+
+**This closes the loop the investigation was missing**: the DDR read
+corruption is now directly confirmed on real EO camera data, not merely
+inferred from the ramp test and assumed to generalize. Combined with
+section 18.8 (compositor walk proven correct) and 18.9 (no renderer
+starvation observed), the leading hypothesis from section 18.10 is now
+substantially strengthened by direct evidence rather than being merely
+"not contradicted": **the already-confirmed, not-yet-root-caused DDR4
+read-burst corruption is very likely sufficient by itself to explain the
+user's reported geometry symptom on the full 6-camera stack**, and no
+separate EO-specific structural bug has been found anywhere despite
+three independent, targeted hardware investigations (compositor ILA,
+renderer ILA, cam0-only DDR ILA). The path forward is squarely
+handoff section 4.1 (the write-idle bank-conflict question) and the
+underlying DQS-gate-timing root cause -- not further EO-side structural
+hunting, which has now been thoroughly exhausted without a finding.
+
+### 18.13 Visual confirmation from live hardware: cam0-only shows striping, no duplication
+
+User shared a live monitor photo of the `SRC_EO0` (cam0-only) build in
+operation. The image shows a single, fully coherent, recognizable real
+scene (a canal/dock view -- water, boats, buildings) with dense, regular
+vertical striping overlaid throughout -- visually the same character of
+artifact as the original ramp-test and 6-camera-stack striping, now
+unambiguously on real single-camera content. **No segment duplication
+or missing regions are visible** -- consistent with (and additional,
+independent confirmation of) section 18.12's ILA-based finding, since
+with the compositor physically absent from this build there is no
+mechanism that could produce segment-level duplication in the first
+place. This is exactly the pattern predicted if the striping corruption
+alone (section 16) is sufficient to explain the full-stack symptom:
+isolated to one camera with no compositor in the picture, the artifact
+is visibly just striping on an otherwise-intact single scene, not a
+scrambled/duplicated composite. Strengthens section 18.12's conclusion
+without yet being a full proof (that would require the masking
+experiment from handoff section 4.0a) -- but no further EO-side
+structural hunting is warranted given this and three independent
+hardware ILA investigations all point the same direction.
+
+### 18.14 User clarification: `SRC_EO0` is decimated, not "zero manipulation" -- native-resolution attempt hits a hard capacity wall (2026-07-07/08)
+
+User viewed a hardware photo of the `SRC_EO0` build and made two
+observations: (1) the striping in that capture reads as clean
+*duplication*, not generic "corruption" -- consistent with, and a more
+precise restatement of, the first-64-bit-chunk-of-every-burst repeat
+found in section 16; (2) more importantly, `SRC_EO0` was centered
+640x480, not the camera's true 1920x1080 -- because it still routed
+every pixel through `EO1920x1080_Decimate3_FrameBuffer`'s crop/
+subsample logic (the same decimation every tile in the real 6-camera
+build uses), it was never actually an unmanipulated, native-resolution
+test. The diagnostic intent (prove the DDR corruption independent of
+the compositor) was still fully served -- decimation isn't the
+compositor -- but it left a fair question open: does the corruption
+look any different at native resolution, with literally zero frame
+processing?
+
+A fourth `SRC_SEL` option, `SRC_EO0RAW`, was added to answer that: cam0
+captured at its true 1920x1080, zero crop/subsample, still no
+compositor. First implementation mirrored `SRC_EO0`'s structure exactly
+but swapped in a new `EO1920x1080_RawFrameBuffer` module (a copy of
+`EO1920x1080_Decimate3_FrameBuffer` with all crop/phase/subsample logic
+deleted) -- i.e. an entire native-resolution frame buffered **on-chip**
+before ever reaching DDR, addressed by a walk state machine exactly
+like the decimated tile buffers use.
+
+This hit a hard FPGA resource wall. `MEMORY_PRIMITIVE_STR("ultra")`
+requested 507 URAM288 instances against 128 available
+(`WARNING: [Synth 8-5835] ... Will try to implement using BRAM`);
+the automatic URAM->BRAM fallback synthesized at 963/984 RAMB36E2
+(97.87%, already razor-thin), and implementation then failed outright:
+
+```
+DRC UTLZ-1: This design requires 1034 of such cell types but only
+984 compatible sites are available.
+```
+
+Root cause of *why* it's this expensive: for a narrow (16-bit) word,
+URAM's native 72-bit width is only ~22% utilized, while BRAM (36Kb,
+18-bit-wide native ports) is ~99.5% efficient for this shape -- so BRAM
+wins per-bit even though it's the "smaller" primitive family. But even
+with the efficient primitive, one unbuffered 1920x1080x16-bit frame is
+~31.64Mb, i.e. ~90%+ of the KU15P's *entire* on-chip memory budget
+(984 RAMB36E2 = 35,424Kb total) by itself -- before the two debug ILAs,
+the pack/scan/write engine, or anything else in the design gets a
+single block.
+
+### 18.15 Corrected architecture: DDR is supposed to be the frame buffer -- rewritten as a genuine streaming pass-through, no on-chip full-frame storage (2026-07-08)
+
+The capacity wall in 18.14 was a symptom of building the wrong thing,
+not a problem to work around by shrinking the test further. User
+clarified directly: **"the purpose was to buffer it in the DDR and
+then pass it to HD_SDI hardware"** -- i.e. DDR (gigabytes of capacity)
+is meant to *be* the frame buffer for this pipeline; the on-chip logic
+only needs to bridge the camera's pixel clock domain into `ui_clk`, the
+same way the existing `u_copy_cdc_fifo` pattern already does for every
+other source. Storing a whole frame in BRAM/URAM *before* it ever
+reaches DDR was never the right shape for "buffer through DDR" -- it
+duplicates the buffering DDR is already doing, and at native resolution
+it simply doesn't fit.
+
+`g_src_eo0raw` (`src/PanoramaBase_DdrBlackFrame.v`) was rewritten from
+scratch as a direct streaming path:
+
+- **No on-chip frame buffer, no walk state machine.** Camera pixels
+  from `eo0_wr_clk`/`eo0_wr_hsync`/`eo0_wr_vsync`/`eo0_wr_pixel` are
+  packed (`{eo0_wr_pixel[19:12], eo0_wr_pixel[9:2]}`) and pushed
+  straight into a 2048-deep `xpm_fifo_async` CDC FIFO
+  (`eo0_wr_clk` -> `c0_ddr4_ui_clk`) as they arrive, in raster order,
+  gated only by `wr_frame_active (=~vsync) && wr_hsync && !copyfifo_full`
+  -- the same shape as every other source's copy CDC FIFO, just fed
+  directly from the camera instead of from an on-chip buffer's read
+  port. `col_in_tile`/`row_in_tile`/`row_base`/`copy_walk_done`/
+  `EO1920x1080_RawFrameBuffer` are all gone; there is no random-access
+  buffer to walk, since the camera already produces pixels in the
+  correct raster order.
+- **Copy-start trigger changed from display-edge to camera-edge for
+  this source only.** `g_src_eostk`/`g_src_eo0` can start a new DDR
+  copy pass whenever the *display* needs a fresh bank (`frame_edge`,
+  derived from the renderer's frame toggle) because their on-chip
+  buffer already holds a complete, committed frame at all times,
+  decoupled from the camera's own real-time cadence. A pure streaming
+  source has no such buffer, so starting on the display's schedule
+  could begin mid-camera-frame and tear the image. A new module-scope
+  CDC (`eo0_ftog_wr` / `eo0_frame_edge_ui`, toggle-based, mirroring the
+  existing `ftog_meta`/`ftog_sync`/`ftog_sync_d` pattern) synchronizes
+  the camera's own vsync falling edge into `ui_clk`; `copy_start_trig`
+  now special-cases `SRC_EO0RAW` to trigger on `eo0_frame_edge_ui` (with
+  `eo_frames_valid` gating the very first pass on "camera has produced
+  at least one frame boundary yet"). This had to be declared at module
+  scope, above the `generate` block, for the same elaboration-order
+  reason `copy_active` and friends are (see the note above that
+  declaration) -- `copy_start_trig`'s ternary references it directly.
+- **Why a small FIFO is enough.** Section 17 already established DDR
+  write throughput comfortably exceeds the camera's real-time pixel
+  rate, so a copy pass (2,073,600 pixels, triggered at the camera's own
+  frame start) always finishes well before the *next* camera frame
+  begins. The FIFO only ever needs to absorb momentary read-priority
+  arbitration backpressure, never anywhere near a full frame -- hence
+  2048 entries (4Kb) instead of ~31.64Mb.
+- Added `dbg_eo0raw_fifo_ovf_seen` (sticky, `mark_debug`), matching this
+  project's established bring-up-visibility convention: latches if the
+  camera ever produces an active pixel while the CDC FIFO is full,
+  which should never happen given the bandwidth headroom above.
+
+Resource footprint is now trivial regardless of resolution (one
+2048x16 FIFO vs. an entire frame's worth of BRAM/URAM), so this no
+longer needs a compromise crop -- it runs at the camera's true native
+1920x1080 with zero pixel-level manipulation of any kind.
+
+**Result: builds clean.** Synthesis: 0 errors, 0 critical warnings
+attributable to this change (the 2 critical warnings present are
+pre-existing `set_clock_groups` XDC issues unrelated to `g_src_eo0raw`).
+Cell usage for the new source is exactly what was expected -- a single
+`u_copy_cdc_fifo` (2K x 16, `WARNING: [Synth 8-7124] ... implemented
+using BRAM instead of URAM. Memory would be severely underutilized if
+URAMs are used` -- correctly auto-selected) versus 1034 RAMB36E2 for
+the old on-chip-buffer approach. Full implementation (place, route,
+`write_bitstream`) also completed clean: `DRC finished with 0 Errors`,
+`Bitgen Completed Successfully`, and timing closes with positive
+margin on every check -- WNS +0.303ns, WHS +0.010ns, WPWS +0.039ns,
+0 failing endpoints on all three, "All user specified timing
+constraints are met." Bitstream:
+`EO_IR_HD_SDI_panorama_base.runs/impl_1/KintexTop_EO_IR_HD_SDI_panorama_base.bit`.
+
+### 18.16 Hardware result: same corruption signature confirmed on the zero-manipulation native-resolution stream
+
+Programmed and captured via `scripts/codex_ila_capture_eo0raw.tcl` (same
+`dbg_ila_0`, same `write_retiring`-triggered queue-correlation method as
+section 18.12). Capture window is short (`dbg_ila_0` depth 2048 cycles
+at 300MHz ui_clk, ~6.8us) so only 16 read beats fell inside it -- a much
+smaller sample than section 18.12's 312, so this is corroborating, not
+independently decisive on its own -- but the same qualitative signature
+is present: read first-chunk (64b) uniqueness 13/16 vs. last-chunk 16/16
+(write-side, for comparison, is 16/16 on both, confirming the write
+path is clean here too, consistent with every earlier finding). Three
+first-chunk values repeat exactly: `0xbbabbbafbaaabaae`,
+`0xbfbfbebefefedefe`, `0xbbbbbbbbbbbfbabe` -- each appearing in a pair,
+never a last-chunk value repeating. This is the cleanest test run in
+the whole investigation: true native 1920x1080 cam0 resolution, zero
+crop/subsample decimation, zero compositor, and now zero on-chip
+full-frame buffering of any kind -- pixels flow camera -> small CDC
+FIFO -> DDR write -> DDR read -> HD-SDI with no intermediate processing
+stage left to blame. The corruption signature surviving here removes
+the last remaining category of "maybe it's something in the EO capture
+path" theories; combined with section 18.12 (real camera data, no
+compositor) and sections 16/17 (ramp data, no EO path at all, every
+outstanding-depth stratum), the corruption is now confirmed present
+across four structurally distinct source configurations. Consistent
+with the standing conclusion: this is a DDR4 PHY/calibration-level
+effect (leading theory: first-beat DQS-gate/preamble timing, section
+16), not fixable from this codebase's RTL, and the one remaining open
+question is still handoff section 4.1 (does it persist with the write
+engine fully idle, i.e. rules in/out a read-during-write bank conflict
+as an alternative or contributing explanation).
+
+### 18.17 Visual confirmation from live hardware: native-resolution zero-manipulation stream shows the identical striping
+
+User viewed the `SRC_EO0RAW` build live on the monitor and confirmed:
+"same symptoms" -- dense, regular vertical (mostly magenta/pink)
+striping over an otherwise coherent, recognizable real scene (canal/
+dock, water, boats), visually indistinguishable in character from every
+prior test (original 6-camera stack, ramp, `SRC_EO0`). This is the
+strongest single confirmation in the investigation: the build under
+test here has cam0 at its true native 1920x1080, zero crop/subsample
+decimation, zero compositor, and zero on-chip full-frame buffering --
+literally nothing left in the on-chip datapath besides a small CDC FIFO
+between the camera and DDR. With every processing stage that could have
+harbored a geometry/logic bug physically absent from the build, and the
+artifact still present and visually identical, this closes the
+geometry-bug question: there never was a separate EO-side structural
+bug, at any resolution or processing stage. The DDR4 read corruption
+(section 16) is confirmed sufficient, alone, to fully explain every
+visual symptom reported across the whole investigation. The one
+remaining open thread is unchanged: handoff section 4.1's
+write-engine-idle test.
+
+### 18.18 RESOLVED: handoff section 4.1 -- corruption persists with the write engine provably idle, ruling out a bank conflict
+
+`scripts/codex_ila_capture_writeidle.tcl` (existed since the earlier §18
+work but had not yet been run) triggers `dbg_ila_0` on `copy_active`
+transitioning to `1'b0`, run against the already-programmed
+`SRC_EO0RAW` streaming build. Fixed one bug first: the script assumed
+`PROBES.FILE` was still associated with the device from a prior
+`hw_manager` session, but each batch invocation starts a fresh
+`hw_manager` with no such carry-over -- added an explicit
+`set_property PROBES.FILE ...` before `refresh_hw_device`, matching
+every other capture script's pattern (no reprogram needed, the
+already-running bitstream is untouched).
+
+Result: **all 16 correlated read beats had `copy_active==0`,
+`fb_write_pending==0`, and `wdf_pend==0`** -- the write engine wasn't
+just "between copies," it had zero write activity in flight or pending
+by any signal this design tracks. The corruption was still fully
+present: first-chunk (64b) uniqueness 9/16 vs. last-chunk 16/16, with
+most repeated first-chunk values recurring at a strikingly consistent
+distance of ~72 beats in `rd_addr[15:0]` (e.g. `0xc8cb899e9d869082`
+at both `addr=0xd828` and `addr=0xd870`). Analysis:
+`analyze_writeidle.py` (scratchpad), data: `ila_capture_writeidle.csv`.
+
+**This closes the investigation's last open question.** A
+read-during-write bank conflict is ruled out -- there is no write
+anywhere near these reads to conflict with -- and with it, every
+avenue reachable from this codebase's own RTL. The remaining and now
+sole explanation is section 18's/handoff 4.2's DDR4 read DQS-gate/
+preamble-timing theory: a hardware/MIG-calibration-level effect
+specific to the first beat of a BL8 burst, not fixable from this
+repo's RTL. Further root-causing, if pursued, belongs in that
+direction (MIG calibration parameter retuning, Xilinx Answer Record
+search for "UltraScale+ DDR4 MIG native interface first beat read
+burst incorrect" or similar) rather than continued RTL auditing here.
+
+## 19. Mitigation implemented: local pixel substitution in the unpack stage (2026-07-08)
+
+With the root cause confirmed as hardware/MIG-calibration-level (section
+18.18) and outside this repo's ability to fix directly, the user asked
+whether the physical board offered a way around it -- specifically,
+whether power/soldering was implicated (checked against the schematic
+at `C:\SVNProjects\IMU_Stabilize_v40\Circuit Diagram\tbt_camerasystem_251106.pdf`:
+professional DDR4-appropriate power design, dedicated VPP/VTT
+regulators with correct JEDEC sequencing, generous decoupling -- nothing
+suggests a marginal physical rail, and the failure's whole-bus,
+perfectly-deterministic, position-locked character across 4 physically
+separate DDR4 packages (M1-M4) is a poor match for a physical/solder
+defect regardless) and whether the board's 80-bit-wide DDR4 bus (5x
+`MT40A512M16TB-062E`, only 64 of 80 bits used by `ddr4_sub64`) offered a
+spare bank to fail over to (it doesn't -- the 5th chip, M5/DQ64-79,
+shares the same clock/command/address/chip-select as M1-M4; it's the
+same rank, driven by the same DQS-gate mechanism, not an independent
+memory).
+
+**An initially-proposed "shift the read address so useful data never
+lands in the corrupted position" idea turned out not to be literally
+implementable**: DDR4 BL8 bursts are fixed-size, 512-bit-aligned units,
+and the MIG's native app interface exposes no sub-beat addressing --
+every `app_addr` value maps to a distinct, non-overlapping 32-pixel
+chunk, so a read can't be requested starting 4 pixels early. The
+real implementable fix has to live downstream of the read, in how the
+returned data is consumed.
+
+**Implemented in the shared, source-agnostic unpack stage**
+(`beat_fifo -> 32x16b unpack -> pix_fifo`, `PanoramaBase_DdrBlackFrame.v`
+around line 536 and 1365-1377) since every finding in sections 16-18.18
+confirmed the corruption pattern is 100% deterministic and position-
+locked: positions 0-3 of every 32-pixel/512-bit-aligned group are wrong
+on every single read, positions 4-31 are correct on every single read,
+regardless of source, pipelining depth, or write activity. Since every
+window width used in this design (640, 1920) is a multiple of 32, this
+lands on the exact same column-modulo-32 position in every row, which
+is exactly the vertical-stripe pattern seen since the very first
+hardware bring-up screenshot that opened this whole investigation.
+
+Fix: latch pixel 4 (the group's first known-good pixel, `beat_fifo_dout[79:64]`)
+into a new register (`unpack_fill_pixel`) at the moment each 512-bit
+beat is loaded into the unpack shift register; substitute it for
+positions 0-3 (`unpack_count > 6'd28`) instead of passing through the
+corrupted `unpack_shift[15:0]`. Positions 4-31 are untouched. Cost:
+one 16-bit register and a 1-line mux -- zero extra DDR bandwidth, zero
+extra buffer, zero extra reads, and it applies to every `SRC_SEL`
+source automatically since it's in the common back-end. Trade-off:
+the 4 substituted pixels per 32 (12.5% of columns, at fixed positions)
+show the neighboring pixel's value rather than their own real sensor
+data -- a static, thin band rather than a sharp value, in place of the
+current jarring stale-data stripe.
+
+`SRC_SEL` switched back from the `SRC_EO0RAW` diagnostic to
+`SRC_EOSTK` (the real production 6-camera, 1920x960 panorama-through-
+DDR target) to validate the fix on the actual deliverable rather than
+the diagnostic build. Synthesis: 0 errors, 0 critical warnings.
+Implementation/bitgen: 0 errors, 0 critical warnings, timing closes
+with margin (WNS +0.379ns, WHS +0.010ns). Programmed to hardware;
+visual confirmation pending.
