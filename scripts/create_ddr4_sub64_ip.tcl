@@ -3,7 +3,7 @@ set ip_name ddr4_sub64
 set ip_dir  [file join $project_root ip]
 set ip_path [file join $ip_dir $ip_name]
 set ip_xci  [file join $ip_dir $ip_name "${ip_name}.xci"]
-set desired_clock_period_ns 4.998
+set desired_clock_period_ns 4.999
 
 proc patch_clock_period {path desired_clock_period_ns} {
     if {![file exists $path]} {
@@ -72,8 +72,8 @@ set_property -dict [list \
     CONFIG.C0.DDR4_MemoryPart {MT40A512M16TB-062E} \
     CONFIG.C0.DDR4_MemoryType {Components} \
     CONFIG.C0.DDR4_DataMask {DM_NO_DBI} \
-    CONFIG.C0.DDR4_InputClockPeriod {4998} \
-    CONFIG.C0.DDR4_TimePeriod {833} \
+    CONFIG.C0.DDR4_InputClockPeriod {4999} \
+    CONFIG.C0.DDR4_TimePeriod {1071} \
     CONFIG.C0.DDR4_AxiSelection {false} \
     CONFIG.Phy_Only {Complete_Memory_Controller} \
     CONFIG.Debug_Signal {Disable} \

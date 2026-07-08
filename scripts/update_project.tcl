@@ -48,6 +48,20 @@ add_if_missing [file join $project_root constraints ddr4_sub64_firstpass.xdc] co
 
 source [file join $project_root scripts create_ddr4_sub64_ip.tcl]
 
+# Debug ILA cores (dbg_ila_0/1) are regenerated via scripts/codex_add_ila*.tcl
+# and referenced directly from PanoramaBase_DdrBlackFrame.v, but unlike
+# ddr4_sub64 they were only ever added to the in-memory project session, not
+# durably to the persisted fileset -- so they silently vanish (module 'not
+# found' at synthesis) any time the project is reopened fresh, e.g. after
+# scripts/create_ddr4_sub64_ip.tcl's own open/close cycle above. Ensure both
+# are present on every run, matching the ddr4_sub64 robustness pattern.
+foreach ila_name {dbg_ila_0 dbg_ila_1} {
+    set ila_xci [file join $project_root ip $ila_name "${ila_name}.xci"]
+    if {[file exists $ila_xci]} {
+        add_if_missing $ila_xci sources_1
+    }
+}
+
 set_property top KintexTop_EO_IR_HD_SDI_panorama_base [current_fileset]
 update_compile_order -fileset sources_1
 puts "Project update complete for $project_xpr"

@@ -2047,3 +2047,749 @@ the diagnostic build. Synthesis: 0 errors, 0 critical warnings.
 Implementation/bitgen: 0 errors, 0 critical warnings, timing closes
 with margin (WNS +0.379ns, WHS +0.010ns). Programmed to hardware;
 visual confirmation pending.
+
+### 19.1 Hardware iteration results on the mitigation (2026-07-08, same day)
+
+Three findings from live-hardware iteration after §19's first version:
+
+1. **The corrupted range is 8 pixels (TWO 64-bit chunks), not 4.** The
+   original §16 characterization only compared chunk 1 against chunk 8
+   and never directly verified chunk 2. A renderer-side `dbg_ila_1`
+   capture, cross-checking the same `h_cnt` position across 4 different
+   image rows (real scene content varies row-to-row; corrupted output
+   was bit-identical row-to-row), showed `cur_x mod 32` positions 2-9
+   (i.e. burst pixels 0-7 after pipeline offset) 100% stuck while all
+   other positions were 0% stuck. Substitution range widened from 4 to
+   8 pixels; fill source moved from pixel 4 (itself corrupted!) to
+   pixel 8. This is why §19's first build appeared to change nothing.
+
+2. **Found and fixed a REAL capture-timing bug**: `beat_fifo_wr_en` is
+   registered (visible one cycle after `c0_ddr4_app_rd_data_valid`) but
+   `u_beat_fifo`'s `din` was wired to the live `c0_ddr4_app_rd_data`
+   bus -- capturing whatever the MIG drove one cycle LATER than the
+   qualified word. Fixed by latching `rd_data_capture` in lockstep with
+   the enable. Empirically this did NOT change the corruption (the raw
+   bus is already wrong at the valid cycle -- 14/17 unique first-chunk
+   vs 17/17 last-chunk after the fix), but it was a genuine latent bug.
+
+3. **The color-cycling stripes were spurious CHROMA, not luma.** The EO
+   packing (`copyfifo_din`) packed a second real sensor byte into the
+   low (C) byte of every pixel, while the renderer's own comment
+   documents the intent as "grayscale luma, neutral chroma (C=0x80)"
+   -- and the proven-clean ramp source indeed packs `8'h80`. A real
+   varying byte in C is decoded by a standards-compliant BT.1120/SDI
+   receiver as actual Cb/Cr, producing spurious red/green/blue
+   fringing, worst at sharp transitions. Fixed in all three EO source
+   branches. **User-confirmed on live hardware: image became clean
+   grayscale, color artifacts gone, all six tiles correctly placed at
+   correct sizes -- the apparent "duplication" of earlier builds is
+   gone**, retroactively confirming it was a corruption-induced illusion
+   (as §18.10 concluded) all along.
+
+Residual after all of the above: a fine 32px-periodic vertical banding
+from the flat-hold substitution itself (verified by direct USB3 frame
+capture off the board's own SDI grabber -- FFT of the column-difference
+profile shows a clean 31.98px fundamental with harmonics, i.e. OUR
+substitution edge, not new corruption). §19.2: replaced the flat hold
+with a linear interpolation across positions 0-7 between the previous
+group's last good pixel (position 31) and this group's first good pixel
+(position 8) -- build in progress as of this writing.
+
+## 20. ROOT CAUSE (mechanism level) + the actual fix to try: DQS-gate one-clock misalignment at DDR4-2400 -- retime the interface to a lower data rate (2026-07-08)
+
+### 20.1 The mechanism, from the accumulated evidence
+
+Every hard fact collected across sections 13-19 now fits one specific
+mechanism. The decisive arithmetic: the corrupted region is the first
+**128 bits = 2 beats** of every BL8 burst (§19.1 finding 1). DDR is
+double-data-rate: **2 beats = exactly ONE memory clock cycle = one full
+DQS toggle**. A read-DQS-gate (or equivalently, XIPHY read-FIFO
+pointer) alignment that is off by exactly one memory clock produces
+precisely this failure: the first two beat-slots of the burst are
+popped from the capture FIFO before this burst's first DQS edge has
+pushed data into them, so they deliver **stale leftovers from earlier
+bursts** -- and beats 2-7 deliver correct data because by then the
+(late) pushes have caught up with the pops.
+
+Every observation matches:
+
+- 100% deterministic, on every read (a calibration LANDING POINT is
+  wrong by one clock -- not analog noise, so no randomness);
+- stale data from nearby bursts at whole-beat offsets (§18.5's
+  fingerprint: offsets cluster at +32k / 32k+31 -- FIFO leftovers, not
+  bit noise);
+- exactly one tCK worth of beats corrupted, remainder always clean;
+- write path 100% clean (write timing is a different calibration);
+- independent of traffic, pipelining depth, and write-engine state
+  (§17, §18.18 -- the misalignment is static);
+- all 27 calibration stages report PASS -- the DQS-gate cal stage's
+  simple pattern check can land on (or track to) a stable-but-wrong
+  gate position one clock away from the correct one, and
+  `01_DQS_GATE`/`02_DQS_GATE_SANITY_CHECK` are pass/fail gates, not
+  continuous-traffic stress tests;
+- per-bit eye margins all healthy and uniform (§15 -- the eye itself
+  is fine; the GATE is in the wrong clock cycle, which per-bit deskew
+  margins do not measure).
+
+AMD documents this class of failure (calibration passes, deterministic
+post-calibration read data errors, DQS-gate tracking landing/underflow
+issues) in its UltraScale/UltraScale+ MIG hardware-failure casebook:
+https://adaptivesupport.amd.com/s/article/1225537 -- including a case
+where a power-rail (VTT) anomaly during calibration parked the gate in
+a wrong-but-stable position. See also AR 70006 (DDR4 post-calibration
+data errors under specific patterns).
+
+### 20.2 Why this is FIXABLE from this repo after all
+
+The interface currently runs at **DDR4-2400** (`C0.DDR4_TimePeriod
+{833}` ps in `scripts/create_ddr4_sub64_ip.tcl` -> 1200MHz memory
+clock, ui_clk 300MHz). The DQS-gate placement window scales with tCK:
+at 833ps the gate-landing decision is made against a ~0.83ns window;
+at DDR4-1600 (1250ps) the window is 50% wider. A calibration that
+consistently lands one clock off at 2400 has far more margin to land
+correctly at 1600 -- and this design needs a tiny fraction of even
+DDR4-1600's bandwidth (~250MB/s of ~12.8GB/s peak).
+
+**The experiment (config-only, no RTL changes):**
+
+1. Edit `scripts/create_ddr4_sub64_ip.tcl`:
+   `CONFIG.C0.DDR4_TimePeriod {833}` -> `{1250}` (DDR4-1600). Keep
+   `InputClockPeriod {4998}` (the physical 200MHz oscillator is
+   unchanged).
+2. Re-run the script in the project (it deletes and regenerates the IP
+   from scratch -- self-contained, see the purge/create logic in it).
+3. Full synth + impl + bitstream. Note ui_clk drops 300->200MHz; all
+   ui_clk-side timing gets EASIER, and every clock-domain crossing in
+   the design is a proper async FIFO or 2-FF sync, so no RTL
+   assumptions break. `BEATS_TOTAL`/addressing are clock-independent.
+4. Program and re-run the §16 raw-read ILA methodology
+   (`codex_ila_capture_unpack.tcl` + `analyze_alignfix.py`): compare
+   first-chunk vs last-chunk uniqueness on `c0_ddr4_app_rd_data`.
+5. **If clean** (first-chunk uniqueness == last-chunk uniqueness):
+   root cause confirmed as gate misalignment at 2400. Then decide:
+   stay at 1600 permanently (recommended -- bandwidth is irrelevant
+   here) and optionally remove/disable the §19 interpolation patch
+   (keep the neutral-chroma and din-latch fixes -- those are correct
+   regardless). Optionally step back up (2133/1866 = 938/1071ps) if
+   there's ever a reason to want more bandwidth.
+6. **If still corrupted identically at 1600**: the gate theory loses
+   its main support; next steps become (a) scope the VTT rail
+   (TPS51200 output, should be a stable 0.6V) against the AMD VTT
+   case, (b) file with AMD support armed with the §18.5/§20.1
+   fingerprint, (c) keep the §19 interpolation mitigation permanently.
+
+### 20.3 Implementation notes (2026-07-08): the §19 interpolation patch was dropped, three build issues fixed along the way
+
+Per direct user instruction, the §19/19.2 interpolation mitigation was
+**fully reverted** (not just disabled) before starting the retime
+experiment -- masking the symptom stops being worth the complexity once
+a real fix is on the table. Removed: `unpack_fill_y`,
+`unpack_prev_last_y`, and the six interpolation wires
+(`unpack_y_delta*`/`unpack_interp_step_w`/`unpack_y_interp*`) from
+`PanoramaBase_DdrBlackFrame.v`; `pix_fifo_wr_data` is back to an
+unconditional `unpack_shift[15:0]` passthrough. The neutral-chroma
+packing fix and the `beat_fifo` `din`/`rd_data_capture` latch fix were
+**kept** -- both are correct, real bugs, unrelated to which DQS-gate
+theory turns out to be right.
+
+Three real build issues surfaced getting the DDR4-1600 regeneration
+working, none of them RTL bugs:
+
+1. **`C0.DDR4_InputClockPeriod {4998}` is invalid at the new
+   TimePeriod.** The MIG wizard's list of legal input-clock periods is
+   filtered by achievability against the *target* TimePeriod (the PLL
+   needs a reachable VCO ratio) -- `4998` was a valid near-200MHz snap
+   value for the 2400 config but isn't in the legal list for 1250.
+   `5000` (exact 200MHz, matching the board's actual fixed oscillator)
+   is in the list for both. Also updated `desired_clock_period_ns`
+   (used by `patch_ddr_clock_xdcs` to retarget the `create_clock` on
+   `c0_sys_clk_p`) from `4.998` to `5.000` to match.
+2. **`dbg_ila_2` (compositor tile-select debug core) failed to
+   synthesize ("module not found") after the IP regeneration cycle.**
+   Its job was already done twice over (16374/16374 clean on the most
+   recent capture, section 18.8/19.1) so it was removed outright rather
+   than debugged -- see the removal note left in
+   `PanoramaBase_DdrBlackFrame.v` in its place.
+3. **`dbg_ila_0` then failed the same way.** Root cause: unlike
+   `ddr4_sub64` (which has an explicit `ensure_xci_in_xpr` durability
+   check in `update_project.tcl`), the `dbg_ila_0`/`dbg_ila_1` `.xci`
+   files were only ever added to the live Vivado session, never to the
+   persisted project fileset -- so every earlier build in this session
+   that used them worked purely because the project was never fully
+   closed and reopened from a cold `.xpr` in between. The
+   `create_ddr4_sub64_ip.tcl` open/close cycle inside `update_project.tcl`
+   was the first thing to do a cold reopen, exposing it. Fixed
+   durably: `update_project.tcl` now re-adds both `.xci` files via
+   `add_if_missing` on every run, matching the `ddr4_sub64` pattern.
+   (`dbg_ila_2`'s `.xci` still exists on disk but is deliberately not
+   re-added since point 2 above removed its only instantiation.)
+
+After all three fixes: synth 0 errors, 0 critical warnings at
+DDR4-1600. Implementation/bitgen: 0 errors, 0 critical warnings, timing
+closes with MORE margin than at 2400 (WNS +0.491ns vs +0.379ns --
+consistent with ui_clk dropping 300->200MHz making everything easier).
+
+**RESULT: CONFIRMED.** Programmed to hardware and re-ran the exact
+section 16 raw-read methodology (`codex_ila_capture_unpack.tcl` +
+`analyze_alignfix.py`, correlating issued `rd_addr` with
+`c0_ddr4_app_rd_data_valid` returns via the outstanding-read queue) on
+`c0_ddr4_app_rd_data` directly -- the same MIG output wire, same
+technique, that characterized the corruption in the first place. Two
+independent captures: **14/14 and 11/11 unique first-chunk (64b)
+values**, matching (module small-sample noise) the last-chunk
+uniqueness that has *always* been clean. Every single prior capture at
+DDR4-2400, across dozens of captures throughout sections 13-19, showed
+first-chunk uniqueness dramatically below last-chunk (roughly 50-85%
+vs 100%). At DDR4-1600 that gap is gone. **The DQS-gate one-clock
+misalignment theory (section 20.1) is confirmed as the root cause, and
+retiming to DDR4-1600 is confirmed as the fix** -- not a mitigation, a
+fix, verified at the same raw MIG signal where the bug was originally
+proven to exist. Live-monitor visual confirmation pending.
+
+### 20.3.1 CORRECTION after live-monitor check: the retime moved the corruption, it did not eliminate it
+
+User checked the live monitor: image is grayscale as expected (chroma
+fix holds), duplication is still gone, clearly improved -- but reported
+residual "flicker and distortion," and specifically that stripe
+*position* changed and the frame start now looks clean. This is a real,
+important correction to the "CONFIRMED" verdict above, and it came from
+exactly the kind of larger/different-methodology check that should have
+been done before declaring victory on two 11-14-sample captures.
+
+**Direct USB3-grabber frame capture + analysis (not photos) found the
+actual picture:**
+
+1. Same-cycle uniqueness on a small sample (11-14 reads, two captures)
+   looked clean purely because the sample was too small to be reliable
+   -- pooling 8 more captures (577 reads total) gave 74.9% first-chunk
+   unique vs 83.4% last-chunk: a real gap remains, just far smaller
+   than the ~50-85% vs 100% gap at 2400. (This pooled test is also
+   confounded by genuinely flat/dark real scene content repeating
+   legitimately, so 74.9%/83.4% understates how clean it actually is --
+   see point 3.)
+2. FFT of the column-difference profile on a full captured frame still
+   shows the 32px fundamental as completely dominant (period 31.98px,
+   37x the mean spectral magnitude) -- magnitude 10368, essentially
+   unchanged from the pre-retime capture's 10785. Raw spatial-frequency
+   analysis alone cannot tell "still corrupted" apart from "genuinely
+   detailed scene with lots of real vertical structure" (this room has
+   shelving, poles, cabling), so this by itself is inconclusive too.
+3. **The decisive test: per-pixel TEMPORAL variance across a 10-frame
+   sequence.** Real static scene content has near-zero frame-to-frame
+   noise; corrupted/stale DRAM reads do not track the true scene at
+   all and jump around frame to frame. Bucketed by `cur_x mod 32`:
+   positions 2-23 sit at a flat baseline (~1.0 std-dev); positions
+   **25-31 spike to 35-57** (30-50x higher), with 24 partially elevated
+   (~8.6). This is unambiguous, and it directly explains the user's
+   word "flicker" -- flicker *is* what temporally-unstable stale data
+   looks like to the eye, as opposed to the original 2400 corruption's
+   rock-solid static wrong stripe.
+
+**Interpretation:** the corrupted window moved from the *first* ~8
+positions of each 32-pixel group (burst start, at 2400) to the *last*
+~7-8 positions (burst end, at 1600) -- roughly the mirror image. This
+is consistent with the DQS-gate mechanism (section 20.1) still being
+right, but the gate's calibration re-converging to a *different*
+marginal landing point at the new data rate rather than a comfortably
+centered one -- landing one clock early at 2400, one clock late at
+1600, rather than correctly in between. The "flicker" character (vs.
+2400's 100%-deterministic corruption) suggests this landing point sits
+right on a timing edge, probabilistic rather than solidly wrong.
+
+Checked the calibration margin dashboard for a numeric explanation:
+`CAL_ERROR_MSG = No errors detected`, `CAL_STOP_MARGIN = FALSE`, every
+stage that ran reports PASS (`01_DQS_GATE`/`02_DQS_GATE_SANITY_CHECK`
+included), and per-bit read-eye margins (`MARGIN_READ_SIMPLE.*`,
+different property namespace at this data rate than the 2400 build
+used) are healthy and uniform across all 8 bytes (70-76, no outlier).
+None of this is surprising or new information -- the *data*-eye
+(fine, per-bit sampling point) has always looked healthy; the *gate*
+(coarse, which whole beat gets captured) calibration only exposes
+PASS/FAIL, not a numeric margin, so this dashboard was never going to
+show why the coarse landing point is one clock off in either
+direction.
+
+**Next experiment in flight:** DDR4-1866 (`TimePeriod {1071}`,
+`InputClockPeriod` re-resolved same as the 1600 attempt). Reasoning:
+2400 landed early, 1600 landed late -- if there's a rate in between (or
+outside this bracket) where the gate lands correctly centered, this is
+the fastest way to find it empirically. Reusable methodology for
+testing any future rate: capture a 10-frame sequence via the USB3
+grabber (`capture_sequence.py`), compute per-pixel temporal std-dev,
+bucket by `cur_x mod 32` -- a flat ~1.0 baseline with no elevated
+bucket is the bar for "actually clean," not small-sample ILA
+uniqueness checks.
+
+### 20.4 Fallback that also attacks the root cause: per-boot gate nudge
+
+If 1600 is clean but 2400 is ever required: PG150's XSDB debug
+interface exposes the DQS-gate coarse/fine tap positions per byte
+(read-only via `get_hw_migs` properties in this Vivado version, but
+writable through the RIU from a MicroBlaze/JTAG-to-AXI path). A
+one-clock coarse-tap adjustment applied post-calibration would correct
+the landing point directly. Substantially more work than the retime;
+only worth it if the retime experiment both (a) proves the mechanism
+and (b) 2400 bandwidth is someday genuinely needed.
+
+## 21. AMD-documented mechanism confirmed + the exact fix levers (PG150, 2026-07-08)
+
+Pulled the exact mechanism from PG150 (UltraScale Architecture FPGAs
+Memory Interface Solutions, v7.1) -- extracted locally from the PDF, so
+these are direct quotes/citations, not paraphrase.
+
+### 21.1 The gate-open latency model INCLUDES PCB delay -- and our MIG has NO real board delays (`isCustom=false`)
+
+PG150 Ch3 "DQS Gate" (p38-39), verbatim on how the gate landing point
+is chosen:
+
+> "The search for the DQS begins with an estimate of when the DQS is
+> expected back. The total latency for the read is a function of the
+> delay through the PHY, **PCB delay**, and the configured latency of
+> the DRAM (CAS latency, Additive latency, etc.). The search starts
+> three DRAM clock cycles before the expected return of the DQS. The
+> algorithm must start sampling before the first rising edge of the
+> DQS, preferably in the preamble region."
+
+And the gate's time resolution (same section):
+
+> "The XIPHY provides for additional granularity in the time to open
+> the gate through coarse and fine taps. **Coarse taps offer 90° DRAM
+> clock-cycle granularity (16 available)** and each fine tap provides a
+> 2.5 to 15 ps granularity..."
+
+90° per coarse tap => **4 coarse taps = one full DRAM clock cycle**.
+A one-DRAM-clock gate error (exactly our 2-beat/8-pixel corruption) is
+the gate landing 4 coarse taps early or late -- i.e. locked onto the
+wrong DRAM clock cycle of the preamble/burst.
+
+**This is the smoking gun for the rate-dependent flip we observed.**
+The gate-search window is anchored on an *estimate* that includes a
+fixed PCB round-trip delay. Our MIG config has **`C0.DDR4_isCustom =
+false`** -- i.e. we never entered this custom board's actual DQS/DQ/CA/
+CK trace propagation delays; the MIG is using its default/reference
+board-delay assumptions. If the real KU15P board's DDR4 routing delay
+differs from that default by a meaningful fraction of a tCK, the gate
+estimate is off by a *fixed absolute time*. A fixed absolute delay
+error is a *different fraction of tCK at different data rates*:
+- at DDR4-2400 (tCK=833ps) it pushes the estimate past the boundary one
+  way -> gate lands one clock EARLY -> first 2 beats stale;
+- at DDR4-1600 (tCK=1250ps) the same absolute error is a smaller
+  fraction of the (wider) clock -> gate lands the other side -> last
+  ~2 beats corrupted, and close enough to the boundary that VT tracking
+  hunts across it -> the "flicker."
+
+This is exactly the fingerprint of a board-delay/gate-model mismatch,
+and it is independently corroborated by everything else (cal passes,
+per-bit eyes healthy -- the *data* eye is fine, the *gate* is one clock
+off; 100% deterministic at a given rate -- a fixed landing point, not
+noise).
+
+### 21.2 The exact fixes, in priority order
+
+**Fix A (RETRACTED 2026-07-08, see §22 -- `isCustom` is not a board-delay
+input and this IP generation has no such field; leaving this text for
+history, do not act on it):** ~~give the MIG the real board delays~~.
+
+**Fix B (pragmatic, in progress, no board data needed): retime to a
+data rate where the fixed delay error happens to land the gate
+centered.** 2400 = early, 1600 = late, so a rate between/around them may
+center it. DDR4-1866 (`TimePeriod {1071}`, CL13/CWL10) building now;
+if not clean, 2133 (`{938}`) and 2000 (`{1000}`) are the remaining
+in-between points to sweep. Judge each with the 10-frame temporal-
+variance test (§20.3.1), not small ILA samples.
+
+**Fix C (also root cause, no board data, more effort): post-cal coarse-
+tap nudge.** Per §21.1 a one-clock error = 4 coarse taps. PG150 exposes
+`DQS_GATE_READ_LATENCY_RANK#_BYTE#` and the coarse/fine taps in the
+XIPHY RIU. After `calDone`, a MicroBlaze/JTAG-to-AXI agent could add or
+subtract 4 coarse taps per byte to recenter the gate directly. This
+fixes it at native rate like Fix A but without needing board data --
+at the cost of writing/validating the RIU-poke sequence. Fall back to
+this only if board delays (A) are unobtainable and no swept rate (B) is
+clean.
+
+### 21.3 Separately confirmed obligation: VT tracking read cadence (PG150 p143)
+
+PG150 Ch4 "VT Tracking" (p143) -- the gate does not stay put on its own
+after `calDone`:
+
+> "The PHY requires read commands to be issued at a minimum rate to
+> keep the read DQS gate signal aligned to the read DQS preamble after
+> calDone is asserted... 1. At least one read command every 1 µs...
+> 3. There is a three contiguous system clock cycle period with no read
+> CAS commands asserted at the PHY interface every 1 µs."
+
+Plus "Periodic Reads" (p156): "The FPGA DDR PHY requires at least one
+DRAM RD or RDA command to be issued every 1 µs."
+
+We instantiate `Phy_Only {Complete_Memory_Controller}` -- the FULL MIG
+controller -- and PG150 p144 says "MIG generated controllers monitor
+the mcRdCAS and mcWrCAS signals and decide each 1 µs period what
+actions, if any, need to be taken to meet the VT tracking
+requirements." So this is auto-handled *for us* and is NOT expected to
+be the primary bug. BUT our workload is precisely the flagged worst
+case: a long, read-free write-copy phase (a full 1920x960 frame of pure
+writes) interleaved with a read-only scan-out phase. If the flicker at
+1600 has a drift component on top of the gate mislanding, this is where
+it comes from. Cheap thing worth checking on whichever rate ends up
+best: confirm `dbg_cmd_retry_seen`-style visibility that reads never
+stall for >1µs, or restructure the copy so reads and writes interleave
+within each 1µs window rather than running in long single-direction
+bursts. Not the root cause, but a contributor to temporal instability.
+
+### 21.4 Recommended path
+
+1. **Ask the hardware/layout owner for the DDR4 net trace delays** and
+   do Fix A -- it is the only option that cleanly fixes native-rate
+   operation with no derating and no post-cal hackery.
+2. In parallel (no waiting), finish the Fix B rate sweep (1866 -> 2133/
+   2000) as an immediate usable fallback; a derated-but-clean interface
+   is fine here (bandwidth need is ~2% of even 1600).
+3. If neither yields a fully-clean native-rate result and native rate
+   is required, implement Fix C (coarse-tap nudge).
+4. Keep the neutral-chroma and beat_fifo-din-latch fixes regardless
+   (correct independent of all the above). The §19 interpolation
+   masking stays reverted unless a shippable-but-imperfect stopgap is
+   needed before A/B/C land.
+
+### 21.5 DDR4-1866 result: no clear improvement over 1600 -- downgrades confidence in Fix B as a standalone plan
+
+Built and programmed DDR4-1866 (`TimePeriod {1071}`, resolved
+`InputClockPeriod {4999}`; same `isCustom=false` mismatch/InputClock-
+Period-list gotcha as 1600, see §20.3 -- same fix applied). Synth/impl
+clean, WNS +0.397ns.
+
+**Capture tooling hit a wall first**: the USB3 grabber (`VideoCapture`
+index shifted from 0 to 1 after this reprogram, itself a hint that the
+video signal glitched during reprogramming and Windows re-enumerated
+the device) returned a **byte-for-byte identical frame on every read**
+across three independent attempts -- plain re-open, full close/reopen
+per frame with sleeps, and a forced resolution-mode-change jolt. All
+returned the exact same cached image. This was confirmed to be a
+capture-side artifact, not a frozen FPGA: a `dbg_ila_0` capture in
+parallel showed 15/15 unique first-chunk AND 15/15 unique last-chunk
+values with addresses and data both varying normally -- the design is
+live and producing fresh data. Left as an open item; likely needs a
+physical USB replug or closing whatever else may hold the device, not
+resolved this session.
+
+**Fell back to the pooled small-ILA-capture method** (8x captures,
+445 total read beats -- same method used for the 1600 characterization
+in §20.3.1 point 1, with the same caveat: confounded by genuinely
+flat/dark real scene content repeating legitimately on both first- and
+last-chunk). Result: **79.1% first-chunk unique vs 90.3% last-chunk
+unique (11.2-point gap)** -- not better than 1600's 74.9%/83.4%
+(8.5-point gap), arguably slightly worse. Both are dramatically better
+than 2400's ~50-point gap, and neither is a clean 0-point gap.
+
+**This matters beyond just "1866 isn't the answer."** Two rate changes
+in a row (2400->1600->1866) have now each produced *some* improvement
+over the original but *no* clean result, with the corrupted window
+visibly relocating each time (2400: burst start; 1600: burst end,
+flickery) rather than shrinking to nothing. That is consistent with
+§21.1's model: a **fixed absolute** delay-model error does not have any
+particular reason to hit a rate where it fully cancels out inside the
+gate's coarse-tap search window -- there is no guarantee *any* of the
+handful of standard DDR4 rate bins lands exactly on the correct
+boundary, since the correct point is a specific PCB-delay-dependent
+value, not a round-number data rate. Rate-sweeping is a search over a
+small, arbitrary, unevenly-spaced set of points hoping to get lucky;
+it is not guaranteed to converge, and two tries without a clean hit is
+a real (if not conclusive) signal against relying on it alone.
+
+**Revised recommendation: treat Fix A (real board trace delays) as the
+primary path, not a parallel option.** Fix B remains worth finishing
+(2133, 2000 are cheap to try and one might still land clean) but should
+no longer be treated as an equally-likely alternative to Fix A -- it's
+now the fallback while waiting on trace-delay data, not a co-equal
+plan. Practical next step if trace delays take time to obtain: get a
+working temporal-variance capture (fix or work around the grabber
+issue -- an alternate capture tool, a physical USB replug, or a
+pooled-ILA sample large enough (multiple thousands, not hundreds, of
+reads) to overcome the real-content confound) before spending more
+rate-sweep build cycles, since a build+program+capture round trip is
+~40 minutes and the pooled-ILA proxy hasn't been discriminating enough
+to call a rate clean or not clean with confidence.
+
+## 22. CORRECTION: `isCustom` is not a board-trace-delay input -- §21.2 Fix A retracted; real PCB delay data now in-repo and reviewed (2026-07-08)
+
+User added the actual PCB DDR4 net trace-delay reports to the repo:
+`docs/DDR4_Parameter_CAC-1.csv` (address/command/clock group) and
+`docs/DDR4_Parameter_DQ-2.csv` (DQ/DQS/DM group), straight from the
+layout tool (per-net Length, Delay(ns), R/L/C). Investigating how to
+feed this into the MIG surfaced a mistake in §21.1/21.2: **`C0.DDR4_isCustom`
+is not a board-delay flag.** Checked directly against the installed
+IP's own GUI source
+(`.../Vivado/data/ip/xilinx/ddr4_v2_2/xgui/ddr4_v2_2.tcl`): its
+display name is *"Enable Custom Parts Data File"*, paired with
+`C0.DDR4_CustomParts`, a file-browser parameter for a **custom DRAM
+part** electrical/timing-table CSV -- for using a DRAM chip not in
+Xilinx's standard supported-parts database. It has nothing to do with
+PCB trace delay. `MT40A512M16TB-062E` is a standard recognized part, so
+`isCustom=false` here is simply *correct*, not a missing-data gap.
+
+**Checked whether this IP generation has ANY board-trace-delay input at
+all: it does not.** The wizard has exactly 7 top-level pages (Basic,
+AXI Options, Advanced_Clocking, Advanced_Options, Migration Options,
+I/O Planning and Design Checklist) -- no "Board Layout"/"Trace Delay"
+page. The one per-pin "Skew (ps)" table that does exist
+(`C0.DDR4_*_SKEW_*`, found in §21.1's parameter search) lives under
+**"Migration Options"**, and is explicitly for pin-compatible
+UltraScale/UltraScale+ package migration (compensating tiny
+package-internal routing differences between two related device
+packages), not this board's PCB layout. The "I/O Planning and Design
+Checklist" page's own text confirms the broader point: *"The
+methodology for assigning I/O pins for DDR4 IP interfaces has changed.
+Rather than assign I/Os within the IP, they are now assigned in the
+main Vivado I/O Planner..."* -- UltraScale/UltraScale+ MIG simply does
+not take a design-time board-delay table. This tracks with PG150's own
+description of DQS gate training (§21.1's quote) being an **empirical,
+hardware-measured** search at calibration time, not a table lookup
+against a user-supplied estimate -- the "PCB delay" language in that
+quote describes what the physical signal experiences (used to bound
+the search window's starting point via known worst-case ranges), not
+something the user provides per-net.
+
+**§21.1/§21.2 Fix A is retracted.** There is no config-level lever to
+"enter the real board delays" for this MIG/device generation. This was
+a genuine mistake in the earlier analysis, not a dead end that needed
+new data -- the CSVs the user added can't be fed into the IP the way
+§21.2 proposed, regardless of how good the data is.
+
+### 22.1 The trace-delay data itself: reviewed, and it looks like a healthy, well-matched layout
+
+Even though there's no config field to feed it into, the data is still
+useful as a **sanity check on the layout itself** -- if a byte lane's
+DQS were wildly mismatched to its DQ pins or to CK in a way that broke
+DDR4 design rules, that would be independently worth knowing regardless
+of the MIG-config question. Computed key skews from the two CSVs
+(`Delay(ns)` column per net):
+
+- **DQS-to-DQ skew per byte (the tightest, most calibration-critical
+  number): -9.6ps to +10.2ps across all 10 bytes.** Excellent, very
+  tightly matched -- exactly what DDR4 length-matching rules require
+  and calibration expects.
+- **Address/command-to-CK skew: +22.5ps to +62.5ps** across all 17
+  address bits and the command signals (ACT_N, CS_N, CKE, ODT, BA0/1,
+  BG0, PAR). Small and well-controlled.
+- **DQS-to-CK skew: -57ps (byte0) to -376ps (byte5), varying
+  meaningfully across bytes.** This *looks* like the largest number in
+  the set, but it is normal and expected for DDR4 -- different byte
+  lanes are physically different distances from the FPGA to their DRAM
+  chip (byte0/1 go to M1, byte4/5 to M3, etc., per the schematic's
+  physical layout), and **this exact skew is what write-leveling and
+  read-leveling calibration exist to measure and compensate for at
+  runtime.** A few hundred ps of DQS-to-CK spread across byte groups on
+  a multi-chip DDR4 layout is unremarkable, not a defect.
+
+**No outlier, no red flag.** Nothing in this data explains a
+one-clock, whole-rank (all bytes simultaneously, not one bad lane)
+corruption. If anything, this is mild evidence *against* a
+board-layout explanation specifically, since a genuine trace-length
+defect would be expected to show up as a per-byte anomaly (one byte
+much worse than the others), which is not what any of the hardware
+evidence (ILA, temporal-variance, or this CSV) has shown -- every
+finding this whole investigation has pointed at all-bytes-simultaneous
+corruption of specific whole-burst positions, i.e. a *shared*
+mechanism (the gate/VT-tracking control logic, common across the
+rank), not an isolated physical-layer defect on one net.
+
+### 22.2 Revised leading theory and recommended path
+
+With Fix A off the table and the board layout looking clean, the
+mechanism most consistent with everything gathered (§20.1's one-clock
+DQS-gate-window finding, the 2400/1600/1866 rate-dependent relocation
+without ever landing clean, all-bytes-simultaneous corruption, and the
+"flicker"/temporal-instability character at 1600) shifts toward
+**§21.3's VT tracking** -- not as a minor side note anymore, but as the
+leading candidate:
+
+- PG150 p143: the gate does not stay put after `calDone` -- it requires
+  ongoing periodic reads and a `gt_data_ready` pulse to keep tracking
+  voltage/temperature drift, "requires read commands to be issued at a
+  minimum rate," and specifically "there is a three contiguous system
+  clock cycle period with no read CAS commands asserted... every 1
+  µs."
+- Our workload is the textbook stress case PG150 calls out: long,
+  single-direction write bursts (a full 1920x960 frame of writes during
+  `copy_active`) interleaved with read-only scan-out. The full MIG
+  controller (`Phy_Only {Complete_Memory_Controller}`) is supposed to
+  auto-inject reads/`gt_data_ready` to meet this, but auto-injection
+  under an unusual, very asymmetric traffic shape is exactly the kind
+  of corner case that could land the gate one tracking-tick off without
+  ever failing calibration's own PASS/FAIL check.
+- This also explains the rate-dependent *relocation* better than a
+  static delay-model error would: if this is a **tracking** phenomenon
+  (an ongoing correction process, not a one-time fixed search result),
+  its convergence behavior is expected to be sensitive to the data
+  rate's actual tRFC/tCCD/burst-timing relationships in ways a purely
+  static model wouldn't be -- consistent with three different rates
+  producing three different (not just "better/worse") outcomes.
+
+**Recommended next steps, in order:**
+1. **Directly test the VT-tracking-during-write-phase theory** --
+   instrument (or reuse existing `dbg_ila_0` probes) to check whether
+   reads/`gt_data_ready`-triggering activity actually continues at the
+   required cadence during the long write-only `copy_active` phase, or
+   whether there's a multi-µs gap. This is fully in-repo, needs no
+   external data, and directly tests the current leading theory.
+2. **Restructure copy/scan interleaving** if step 1 finds a gap:
+   interleave the write-copy with periodic read activity (even
+   dummy/throwaway reads) rather than running long uninterrupted write
+   bursts, so the PHY's own auto-injection logic is never pushed into
+   an edge case.
+3. **Fix C (post-cal coarse-tap nudge)** remains available and
+   untried -- still worth it if 1-2 don't resolve it, now with more
+   confidence it's addressing the right layer (the gate's *tracked*
+   position, not a one-time miscalibrated search).
+4. Rate-sweep (2133, 2000) is now explicitly de-prioritized -- three
+   tries (2400/1600/1866) without a clean hit, plus the theory shift
+   away from a static delay-model explanation, make further blind
+   sweeping a weak use of a ~40-minute build cycle compared to 1-2
+   above.
+5. Neutral-chroma and beat_fifo-din-latch fixes stay regardless (real,
+   independent bugs). §19 interpolation masking stays reverted.
+
+### 22.3 Step 1 result: CONFIRMED -- our app-level read cadence violates PG150's 1us requirement by up to 6.3x
+
+Ran step 1 directly: 10x `codex_ila_capture_unpack.tcl` captures
+(dbg_ila_0, `write_retiring`-triggered, so biased toward landing inside
+an active copy/write phase), measuring the gap between consecutive
+`read_retiring` events in each ~8.8us window (2048 samples at
+DDR4-1866's ui_clk period, 4.284ns/cycle -- confirmed from
+`C0.DDR4_TimePeriod=1071` in the live `.xci`).
+
+| capture | reads | writes | copy_active | max read gap |
+|---|---|---|---|---|
+| 1,3,4,5,7,10 | 12-17 | 20-21 | 100% | 2-8 cycles (8.6-34.3ns) -- fine |
+| 2 | 136 | 19 | 99.1% | 467 cycles = **2000.6ns** |
+| 6 | 28 | 20 | 100% | **1481 cycles = 6344.6ns** |
+| 8 | 124 | 19 | 97.9% | 405 cycles = 1735.0ns |
+| 9 | 136 | 19 | 97.9% | 561 cycles = 2403.3ns |
+
+4 of 10 independent captures show a read-to-read gap exceeding PG150's
+1000ns (233.4-cycle) limit, worst case **6.3x over the documented
+requirement**. Note this is a *lower bound* on the true worst case --
+each capture window is only ~8.8us, so a gap that started before or
+extended past the window would be truncated, not fully measured.
+
+**Caveat, stated for the record**: PG150 documents that the full MIG
+controller (which we use, `Phy_Only {Complete_Memory_Controller}`) can
+silently auto-inject reads to cover exactly this kind of app-level gap
+-- those injected reads return no data to the UI, so they are
+*invisible* to `read_retiring`/`c0_ddr4_app_rd_data_valid`, which only
+reflect reads *our* RTL explicitly requested. This measurement proves
+our own request pattern violates the documented spec by a wide margin;
+it does not by itself prove the controller's safety net failed to
+compensate, since a failure and a silent success would look identical
+from this vantage point. The proposed fix (§22.2 step 2) is cheap and
+low-risk regardless of which is true -- redundant safety margin if
+auto-injection was already covering it, a real fix if it wasn't.
+
+**Proceeding to §22.2 step 2**: restructure the copy/scan engine so
+reads and writes interleave instead of running long uninterrupted
+write-only stretches.
+
+### 22.4 Keepalive-read mechanism: PROVABLY fixed the measured gap, but caused a severe hardware regression -- reverted (2026-07-08)
+
+Implemented §22.2 step 2 as a targeted keepalive-read insertion rather
+than a full copy/scan restructure: a `read_gap_counter` (10-bit, counts
+ui_clk cycles since the last accepted read) that, once it reaches
+`KEEPALIVE_THRESHOLD = 150` cycles (~642ns, comfortably under PG150's
+233.4-cycle/1000ns limit) with the scan engine not otherwise wanting to
+read, injects a throwaway read command. A 1-bit `cmd_is_keepalive` tag
+followed each command through the pipeline; a small `xpm_fifo_sync`
+tag queue (`u_keepalive_tag_fifo`, depth 32, matching the depth margin
+of the existing in-order outstanding-read tracking) recorded which
+completions were real scan data vs. keepalive throwaway, so the
+keepalive completion could be silently dropped instead of being pushed
+into `beat_fifo` (where it would otherwise inject a garbage pixel into
+the live video stream). `read_retiring`-driven scan-walk advancement
+(`rd_issue_count`/`rd_addr`/`scan_active`) was gated on
+`!cmd_is_keepalive` so keepalive reads didn't consume real scan
+progress, while `outstanding` was still incremented unconditionally
+(both real and keepalive reads occupy an MIG command slot).
+
+**Hardware validation of the mechanism itself, in isolation, was a
+clean success**: 10 pooled `codex_ila_capture_unpack.tcl` captures
+after deploying this change showed a worst-case read-to-read gap of
+861ns across all 10 windows -- 0/10 violations of the 1000ns PG150
+limit (vs. 4/10 violations, worst case 6344.6ns, before the change;
+see §22.3 table). The keepalive logic did exactly what it was designed
+to do at the level it was instrumented and measured.
+
+**Despite that, deploying the same bitstream to the actual video path
+produced a severe regression: a blank black screen**, reported
+directly by the user ("Well I programmed again but the output this
+time is blank black screen. I checked with other working RTL the
+grabber and everything else is working fine.") -- explicitly ruling
+out capture-tooling/grabber issues as the explanation, since the same
+grabber worked correctly with a different (pre-keepalive) bitstream
+loaded. This is a materially worse symptom than the corruption being
+fixed (visible-but-flawed content -> nothing at all), and the root
+cause inside the new RTL was not identified by code re-reading alone
+in the time available. Candidate hypotheses that were NOT ruled out
+before reverting (left here for whoever re-attempts this):
+
+- **Interaction with `flush_active`**: keepalive reads were not gated
+  on `!flush_active`. The frame-boundary flush completion check
+  (`outstanding == 0 && beat_fifo_empty`) could plausibly never
+  observe `outstanding == 0` if a keepalive read keeps getting issued
+  during what should be a draining/idle window, stalling the flush
+  sequencer indefinitely -- which would plausibly present as exactly
+  "blank black screen" if the renderer's frame-valid gating depends on
+  flush ever completing.
+- **FWFT tag-queue pop-timing mismatch**: `u_keepalive_tag_fifo` was
+  read (`rd_en`) directly on `c0_ddr4_app_rd_data_valid`, relying on
+  the tag queue's FWFT `dout` being valid and correctly aligned to the
+  *same* completion the data-valid pulse corresponds to. Any off-by-one
+  in when the tag was pushed (`read_retiring`, i.e. command-accept
+  time) vs. when the native interface actually returns data for that
+  specific command could desync the tag stream from the data stream --
+  every completion after the first desync would be misclassified,
+  which could plausibly drop large swaths of real scan data into the
+  "discard" path, producing exactly the observed all-black result.
+- Something else entirely not yet considered -- the above two are the
+  most structurally plausible from code inspection, not confirmed.
+
+**Decision: reverted the keepalive mechanism in full** (all 7 pieces:
+`cmd_is_keepalive` declaration, `u_keepalive_tag_fifo` instantiation,
+`keepalive_want`/`read_gap_counter`/`KEEPALIVE_THRESHOLD` declarations,
+the arbitration branch, the scan-walk gating, the completion-handler
+skip, and the reset-block additions) rather than iterate further on
+hardware with an unconfirmed hypothesis. `src/PanoramaBase_DdrBlackFrame.v`
+is now back to the pre-keepalive state (verified via `git diff` against
+the last commit showing only the already-decided interpolation-patch
+and `dbg_ila_2` removals, zero net keepalive-related lines). Rebuilding
+and reprogramming to reconfirm the pre-keepalive baseline (DDR4-1866,
+"flicker and distortion... much improved" per the user's prior
+description -- visible content with residual corruption, not fully
+clean but not broken) is in progress as of this writing.
+
+**The underlying measured problem from §22.3 (6.3x PG150 violation)
+is still real and unaddressed.** The keepalive *mechanism design*
+demonstrably closes the measured gap; what's unproven is that it can
+be deployed without a side effect this severe. Before re-attempting:
+add dedicated ILA visibility on the new signals themselves
+(`cmd_is_keepalive`, `keepalive_want`, `read_gap_counter`,
+`keepalive_tag_empty`/`dout`, and ideally `flush_active` /
+`outstanding` sampled at the same time) so the next hardware iteration
+can distinguish these hypotheses directly instead of reasoning blind
+from a black screen alone. Gating keepalive issuance on `!flush_active`
+outright is a cheap, low-risk first change to try even before adding
+instrumentation, since it directly addresses the most structurally
+plausible hypothesis above.
+
+**Revert confirmed on hardware, same day.** Rebuilt from the fully
+reverted source (synth: 0 errors, 0 new critical warnings, 726
+RAMB36E2/75 URAM288; impl+bitgen: 0 DRC errors, 0 critical warnings,
+WNS +0.449ns, WHS +0.016ns), reprogrammed the board, and the user
+confirmed via the USB3 grabber's camera app that the blank-black-screen
+regression is gone -- the display is back to the pre-keepalive baseline
+(visible panorama content with residual flicker/distortion, the state
+described in §20.3.1/the user's own report after the DDR4-1866 retime).
+This closes out the regression. The vertical-stripe/read-corruption
+artifact itself is still open -- §22.3's confirmed 6.3x PG150 violation
+remains the leading, most actionable lever, but the next attempt at a
+keepalive-style fix needs the instrumentation described above before
+going back to hardware.

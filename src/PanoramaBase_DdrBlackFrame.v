@@ -176,6 +176,20 @@ module PanoramaBase_DdrBlackFrame(
     // overlap) -- conclusively ruling out pipelining depth as a factor.
     // Reverted to 16 (no benefit at 4, and 16 is better for throughput).
     localparam [6:0]   MAX_OUTSTANDING = 7'd16;
+    // VT-tracking keepalive-read threshold (docs/DDR_READ_CADENCE_VT_TRACKING_FIX_PLAN.md).
+    // First hardware pass at 150 cycles (~643ns) cut the worst-case gap from
+    // 6344.6ns to 1023.9ns (10 captures) -- a huge improvement, but one
+    // capture landed just over the 1us limit. Root cause (confirmed via the
+    // new keepalive_want/cmd_pend/read_gap_counter ILA probes): the
+    // keepalive command launched promptly at the threshold, but then sat in
+    // cmd_pend for ~87 extra ui_clk cycles (~372ns) waiting on
+    // c0_ddr4_app_rdy -- almost certainly the MIG servicing a periodic DDR4
+    // refresh (tRFC), which blocks the native interface regardless of what
+    // this RTL requests. Lowered to 60 cycles (~257ns) so that even a full
+    // repeat of that ~90-cycle stall (60+90=150 cycles=~643ns) still lands
+    // comfortably under the 233-cycle/1000ns PG150 limit, rather than
+    // chasing the exact refresh timing.
+    localparam [9:0]   KEEPALIVE_THRESHOLD = 10'd60;
     localparam [15:0]  BLACK_PIXEL   = 16'h1080;     // Y=0x10, C=0x80 (neutral)
     localparam [511:0] BLACK_BURST   = {32{BLACK_PIXEL}};
 
@@ -241,6 +255,9 @@ module PanoramaBase_DdrBlackFrame(
     //------------------------------------------------------------------------
     reg          cmd_pend;
     reg          cmd_is_rd;
+    reg          cmd_is_keepalive; // 1 = this command is a VT-tracking dummy
+                                    // read (see docs/DDR_READ_CADENCE_VT_TRACKING_FIX_PLAN.md),
+                                    // not real scan data
     reg  [28:0]  cmd_addr_q;
     reg          wdf_pend;
     reg  [511:0] wdf_data_q;
@@ -528,6 +545,43 @@ module PanoramaBase_DdrBlackFrame(
     reg [16:0] rd_issue_count;
     reg [6:0]  outstanding;
     reg [6:0]  outstanding_next;
+
+    // VT-tracking keepalive-read mechanism v2 (docs/DDR_READ_CADENCE_VT_TRACKING_FIX_PLAN.md,
+    // revert-and-redo of the plan section 22.4 v1 attempt). Counts ui_clk
+    // cycles since the last ACCEPTED read command (real scan or dummy
+    // keepalive -- read_retiring covers both). Saturates instead of
+    // wrapping so the KEEPALIVE_THRESHOLD comparison stays stable
+    // indefinitely if arbitration contention ever delays a keepalive
+    // launch past the raw threshold value.
+    reg  [9:0] read_gap_counter;
+
+    // Explicit register-ring read-return tag queue. v2 deliberately does
+    // NOT reuse an XPM FWFT FIFO here: the v1 attempt popped an XPM tag
+    // FIFO directly on c0_ddr4_app_rd_data_valid and is the leading
+    // suspect for the blank-screen regression it caused (a FWFT dout
+    // timing mismatch could silently misclassify real scan completions as
+    // keepalive-discard). One bit per accepted read command (0=real scan,
+    // 1=keepalive dummy), pushed on read_retiring, classified+popped on
+    // c0_ddr4_app_rd_data_valid -- the native interface returns
+    // completions strictly in issue order, so a plain in-order ring
+    // buffer is an exact match, no reordering to account for. Depth 32
+    // gives 2x margin over MAX_OUTSTANDING so it can never overflow in
+    // normal operation; rd_tag_overflow/underflow are sticky hardware
+    // bring-up alarms, not expected to ever fire.
+    localparam integer RD_TAG_DEPTH  = 32;
+    localparam integer RD_TAG_AWIDTH = 5;   // log2(RD_TAG_DEPTH)
+    reg                     rd_tag_mem [0:RD_TAG_DEPTH-1];
+    reg [RD_TAG_AWIDTH-1:0] rd_tag_head;
+    reg [RD_TAG_AWIDTH-1:0] rd_tag_tail;
+    reg [RD_TAG_AWIDTH:0]   rd_tag_count;   // 0..32, one extra bit vs the index width
+    reg                     rd_tag_overflow;
+    reg                     rd_tag_underflow;
+    // Classification of the return CURRENTLY completing (valid the same
+    // cycle as c0_ddr4_app_rd_data_valid, read from the queue tail BEFORE
+    // it advances this same cycle -- ordinary synchronous-FIFO
+    // read-before-pop semantics, not FWFT).
+    wire rd_return_is_keepalive = rd_tag_mem[rd_tag_tail];
+
     // Read-data/write-enable alignment fix (plan section 20): beat_fifo_wr_en
     // is a registered pulse, only visible the cycle AFTER
     // c0_ddr4_app_rd_data_valid was actually sampled true -- but beat_fifo's
@@ -544,39 +598,6 @@ module PanoramaBase_DdrBlackFrame(
     // beat_fifo -> pix_fifo unpack
     reg [511:0] unpack_shift;
     reg [5:0]   unpack_count;
-    // DDR4 read-burst corruption workaround (plan section 19/19.1/19.2,
-    // handoff section 4.2): positions 0-7 of every 32-pixel group are
-    // corrupted on 100% of read bursts on this hardware (widened
-    // 2026-07-08 from an original 0-3 model -- a live renderer-side ILA
-    // capture, cross-checked against 4 different image rows to separate
-    // real scene content from stuck data, showed the corrupted range is
-    // actually the first TWO 64-bit chunks, not one -- the original ILA
-    // characterization only ever compared chunk 1 against chunk 8 and
-    // never directly verified chunk 2). Rather than flat-hold one
-    // known-good pixel across all 8 positions (which produced a sharp,
-    // regularly-repeating edge every 32 columns -- confirmed via a direct
-    // USB3 capture off the SDI grabber board and FFT analysis showing a
-    // clean 32.0px fundamental), linearly interpolate across positions
-    // 0-7 between the previous group's last known-good pixel (position
-    // 31) and this group's first known-good pixel (position 8), which
-    // removes that sharp edge since the two endpoints are both genuine,
-    // trustworthy data.
-    reg [7:0]   unpack_fill_y;       // this group's position 8 (Y byte)
-    reg [7:0]   unpack_prev_last_y;  // previous group's position 31 (Y byte)
-
-    // Linear interpolation across positions 0-7 (unpack_count 32 downto 25)
-    // between unpack_prev_last_y and unpack_fill_y. Step = 33-unpack_count
-    // gives 1..8 across those 8 positions; dividing by 8 instead of the
-    // "true" 9 slightly overshoots (position 7 lands exactly on
-    // unpack_fill_y rather than one step short of it), which is a
-    // deliberately cheap approximation -- fine for visual smoothing, and
-    // avoids a real divider.
-    wire signed [9:0]  unpack_y_delta         = $signed({2'b0, unpack_fill_y}) - $signed({2'b0, unpack_prev_last_y});
-    wire [5:0]         unpack_interp_step_w   = 6'd33 - unpack_count;
-    wire signed [14:0] unpack_y_delta_scaled  = unpack_y_delta * $signed({1'b0, unpack_interp_step_w[3:0]});
-    wire signed [14:0] unpack_y_delta_shifted = unpack_y_delta_scaled >>> 3;
-    wire signed [15:0] unpack_y_interp_s      = $signed({6'b0, unpack_prev_last_y}) + unpack_y_delta_shifted;
-    wire [7:0]         unpack_y_interp        = unpack_y_interp_s[7:0];
 
     // renderer frame-boundary pulse, synchronized into ui_clk
     reg        ftog_meta, ftog_sync, ftog_sync_d;
@@ -654,6 +675,33 @@ module PanoramaBase_DdrBlackFrame(
                      !pix_fifo_wr_rst_busy && (outstanding < MAX_OUTSTANDING);
     // Copy wants to issue a write this cycle.
     wire write_want = running && copy_active && fb_write_pending;
+
+    // VT-tracking keepalive dummy-read address: read from the bank NOT
+    // currently being written, so it never races the in-flight write
+    // engine. The data is always discarded downstream (rd_return_is_keepalive
+    // gates beat_fifo_wr_en below), so which specific address within that
+    // bank is read does not matter -- only that it is a valid,
+    // already-initialized DDR address.
+    wire [28:0] keepalive_addr = wr_bank ? BANK0_BASE : BANK1_BASE;
+
+    // keepalive_want: desire to issue a dummy read to keep the DQS gate's
+    // VT tracking active during write-heavy stretches where scan_want
+    // would otherwise be false for a long time (plan section 22.3's
+    // confirmed 6.3x-over-spec read-gap violation). Explicitly excludes
+    // flush_active -- the v1 attempt's leading suspected root cause of the
+    // blank-screen regression: a dummy read outstanding during flush could
+    // keep the flush-completion check (outstanding==0) from ever becoming
+    // true, stalling the frame-boundary commit indefinitely.
+    wire keepalive_want = running && !flush_active && !scan_want &&
+                          (read_gap_counter >= KEEPALIVE_THRESHOLD) &&
+                          (outstanding < MAX_OUTSTANDING) &&
+                          (rd_tag_count < RD_TAG_DEPTH);
+
+    // keepalive_launch: the actual cycle a keepalive read is selected by
+    // the arbiter (below) and loaded into the held-command register --
+    // distinct from keepalive_want, which can stay asserted across
+    // multiple cycles while a write command is being held/accepted.
+    wire keepalive_launch = !issue_busy && !scan_want && keepalive_want;
 
     //------------------------------------------------------------------------
     // Copy-side pixel source (SRC_SEL-selected, compile-time).  Produces
@@ -990,39 +1038,17 @@ module PanoramaBase_DdrBlackFrame(
         end
 
         //--------------------------------------------------------------------
-        // Hardware bring-up ILA #3 (2026-07-07, see docs/DDR_EO_PANORAMA_FIX_PLAN.md
-        // section 18.8): direct visibility into the compositor's tile-select
-        // walk, added after live hardware evidence (user-reported: top half
-        // of the panorama cycles cam0/cam1/cam0/cam1 instead of cam0/cam1/
-        // cam2, i.e. the third (rightmost) tile in each row-group never
-        // appears) suggested col_group cycling or the eo*_rd_en tile-select
-        // mux might not behave on hardware the way the source read clean in
-        // section 18.1's review. Note this walk was NEVER exercised by any
-        // of the section 13/16 ILA verification, which used SRC_SEL=SRC_RAMP
-        // (the g_src_ramp branch below) -- that source bypasses this entire
-        // generate branch, so "write path is 100% correct" from section 16
-        // was only ever proven for the ramp source, not for this compositor
-        // walk or its 6-way tile mux. clk=rd_clk (this whole branch is
-        // rd_clk domain since the section 10 re-clocking). Trigger on
-        // copy_issue, which fires on essentially every cycle of an active
-        // copy, to get a large, information-dense capture of walk behavior
-        // (16384 samples ~= 25 tile-widths ~= 8 full col_group cycles).
-        //--------------------------------------------------------------------
-        dbg_ila_2 u_dbg_ila_2 (
-            .clk     (rd_clk),
-            .probe0  (copy_issue),
-            .probe1  (copy_active_rd),
-            .probe2  (col_group),
-            .probe3  (row_group),
-            .probe4  (col_in_tile),
-            .probe5  (row_in_tile),
-            .probe6  (copy_walk_done),
-            .probe7  (eo_cur_col_group),
-            .probe8  (eo_cur_row_group),
-            .probe9  (copyfifo_wr_en),
-            .probe10 (copyfifo_din),
-            .probe11 ({eo0_rd_en, eo1_rd_en, eo2_rd_en, eo3_rd_en, eo4_rd_en, eo5_rd_en})
-        );
+        // Hardware bring-up ILA #3 (dbg_ila_2, compositor tile-select walk)
+        // was instantiated here 2026-07-07 (see plan section 18.8) and has
+        // since been removed (2026-07-08): its job -- verifying col_group/
+        // row_group cycling and the eo*_rd_en tile-select mux -- was
+        // conclusively confirmed correct twice on hardware (16374/16374
+        // events matched their expected tile with zero mismatches on the
+        // most recent capture, plan section 18.8/re-verification during
+        // section 19.1), and it was blocking synthesis after the DDR4 IP
+        // regeneration in section 20 for unrelated reasons (stale
+        // out-of-context reference). Re-add via a fresh create_ip if the
+        // compositor walk ever needs live re-verification again.
     end else if (SRC_SEL == SRC_EO0) begin : g_src_eo0
         //--------------------------------------------------------------------
         // Diagnostic-only single-camera source (2026-07-07, see
@@ -1358,6 +1384,7 @@ module PanoramaBase_DdrBlackFrame(
             running          <= 1'b0;
             cmd_pend         <= 1'b0;
             cmd_is_rd        <= 1'b0;
+            cmd_is_keepalive <= 1'b0;
             cmd_addr_q       <= 29'd0;
             wdf_pend         <= 1'b0;
             wdf_data_q       <= BLACK_BURST;
@@ -1390,14 +1417,13 @@ module PanoramaBase_DdrBlackFrame(
             dbg_cmd_retry_seen <= 1'b0;
             scan_active      <= 1'b0;
             rd_data_capture  <= 512'd0;
+            read_gap_counter <= 10'd0;
             flush_active     <= 1'b0;
             rd_addr          <= BANK0_BASE;
             rd_issue_count   <= 17'd0;
             outstanding      <= 7'd0;
             unpack_shift     <= 512'd0;
             unpack_count     <= 6'd0;
-            unpack_fill_y     <= 8'd0;
-            unpack_prev_last_y<= 8'd0;
             ftog_meta        <= 1'b0;
             ftog_sync        <= 1'b0;
             ftog_sync_d      <= 1'b0;
@@ -1421,18 +1447,7 @@ module PanoramaBase_DdrBlackFrame(
             //----------------------------------------------------------------
             if (!flush_active && (unpack_count != 0) && !pix_fifo_full && !pix_fifo_wr_rst_busy) begin
                 pix_fifo_wr_en   <= 1'b1;
-                // unpack_count is the PRE-decrement position within this
-                // 32-pixel group (32 down to 1); 32 downto 25 are pixels
-                // 0-7 -- the corrupted first TWO 64-bit chunks of the read
-                // burst (see comment on unpack_fill_y above). Substituted
-                // with a linear interpolation across the two known-good
-                // neighbors rather than the DDR data. Every other position
-                // passes the real DDR data through, and position 31 (the
-                // last of this group, unpack_count==1) is latched as the
-                // next group's interpolation start point.
-                pix_fifo_wr_data <= (unpack_count > 6'd24) ? {unpack_y_interp, 8'h80} : unpack_shift[15:0];
-                if (unpack_count == 6'd1)
-                    unpack_prev_last_y <= unpack_shift[15:8];
+                pix_fifo_wr_data <= unpack_shift[15:0];
                 unpack_shift     <= {16'd0, unpack_shift[511:16]};
                 unpack_count     <= unpack_count - 6'd1;
                 dbg_pixwrite_seen<= 1'b1;
@@ -1440,7 +1455,6 @@ module PanoramaBase_DdrBlackFrame(
                 beat_fifo_rd_en   <= 1'b1;
                 unpack_shift      <= beat_fifo_dout;
                 unpack_count      <= 6'd32;
-                unpack_fill_y     <= beat_fifo_dout[143:136];
             end else if (flush_active && (outstanding == 7'd0) && !beat_fifo_empty) begin
                 beat_fifo_rd_en <= 1'b1;   // drain and discard stale beats
             end
@@ -1452,7 +1466,11 @@ module PanoramaBase_DdrBlackFrame(
             if (c0_ddr4_app_rd_data_valid) begin
                 dbg_rddata_seen <= 1'b1;
                 rd_data_capture <= c0_ddr4_app_rd_data;
-                if (!beat_fifo_full)
+                // Only real scan completions may enter beat_fifo -- a
+                // keepalive dummy completion is discarded here (v1's
+                // suspected bug was exactly this classification going
+                // wrong; see rd_return_is_keepalive's declaration comment).
+                if (!rd_return_is_keepalive && !beat_fifo_full)
                     beat_fifo_wr_en <= 1'b1;
                 if (outstanding_next != 0)
                     outstanding_next = outstanding_next - 7'd1;
@@ -1600,15 +1618,24 @@ module PanoramaBase_DdrBlackFrame(
                 if (wdf_fire)               w_wdf_done <= 1'b1;
 
                 if (read_retiring) begin
-                    dbg_scan_issue_seen <= 1'b1;
                     outstanding_next = outstanding_next + 7'd1;
-                    if (rd_issue_count == BEATS_TOTAL - 1) begin
-                        scan_active    <= 1'b0;
-                        rd_issue_count <= 17'd0;
-                    end else begin
-                        rd_issue_count <= rd_issue_count + 17'd1;
-                        rd_addr        <= rd_addr + ADDR_STRIDE;
+                    read_gap_counter <= 10'd0;
+                    // Only a REAL scan read may advance the scan walk --
+                    // a keepalive dummy read occupies an MIG command slot
+                    // (already reflected in outstanding_next above) but
+                    // must never consume scan progress.
+                    if (!cmd_is_keepalive) begin
+                        dbg_scan_issue_seen <= 1'b1;
+                        if (rd_issue_count == BEATS_TOTAL - 1) begin
+                            scan_active    <= 1'b0;
+                            rd_issue_count <= 17'd0;
+                        end else begin
+                            rd_issue_count <= rd_issue_count + 17'd1;
+                            rd_addr        <= rd_addr + ADDR_STRIDE;
+                        end
                     end
+                end else if (read_gap_counter != 10'd1023) begin
+                    read_gap_counter <= read_gap_counter + 10'd1;
                 end
 
                 if (write_retiring) begin
@@ -1630,22 +1657,71 @@ module PanoramaBase_DdrBlackFrame(
 
                 if (!issue_busy) begin
                     if (scan_want) begin
-                        cmd_pend   <= 1'b1;
-                        cmd_is_rd  <= 1'b1;
-                        cmd_addr_q <= rd_addr;
+                        cmd_pend         <= 1'b1;
+                        cmd_is_rd        <= 1'b1;
+                        cmd_is_keepalive <= 1'b0;
+                        cmd_addr_q       <= rd_addr;
+                    end else if (keepalive_want) begin
+                        cmd_pend         <= 1'b1;
+                        cmd_is_rd        <= 1'b1;
+                        cmd_is_keepalive <= 1'b1;
+                        cmd_addr_q       <= keepalive_addr;
                     end else if (write_want) begin
-                        cmd_pend   <= 1'b1;
-                        cmd_is_rd  <= 1'b0;
-                        cmd_addr_q <= wr_addr;
-                        wdf_pend   <= 1'b1;
-                        wdf_data_q <= fb_pack_buf;
-                        w_cmd_done <= 1'b0;
-                        w_wdf_done <= 1'b0;
+                        cmd_pend         <= 1'b1;
+                        cmd_is_rd        <= 1'b0;
+                        cmd_is_keepalive <= 1'b0;
+                        cmd_addr_q       <= wr_addr;
+                        wdf_pend         <= 1'b1;
+                        wdf_data_q       <= fb_pack_buf;
+                        w_cmd_done       <= 1'b0;
+                        w_wdf_done       <= 1'b0;
                     end
                 end
             end
 
             outstanding <= outstanding_next;
+        end
+    end
+
+    //------------------------------------------------------------------------
+    // Read-return tag queue push/pop (see the rd_tag_* declarations above
+    // for why this is a plain explicit ring buffer, not an XPM FWFT FIFO).
+    // Push happens on read_retiring (any accepted read, real or
+    // keepalive); pop happens on c0_ddr4_app_rd_data_valid -- the native
+    // interface returns completions strictly in issue order, so a plain
+    // FIFO in issue order is an exact match. Handles push+pop landing on
+    // the same cycle correctly (net count unchanged, both pointers
+    // advance independently).
+    //------------------------------------------------------------------------
+    always @(posedge c0_ddr4_ui_clk) begin
+        if (ui_rst) begin
+            rd_tag_head      <= {RD_TAG_AWIDTH{1'b0}};
+            rd_tag_tail      <= {RD_TAG_AWIDTH{1'b0}};
+            rd_tag_count     <= {(RD_TAG_AWIDTH+1){1'b0}};
+            rd_tag_overflow  <= 1'b0;
+            rd_tag_underflow <= 1'b0;
+        end else begin
+            if (read_retiring) begin
+                if (rd_tag_count == RD_TAG_DEPTH) begin
+                    rd_tag_overflow <= 1'b1;   // sticky -- should never happen
+                end else begin
+                    rd_tag_mem[rd_tag_head] <= cmd_is_keepalive;
+                    rd_tag_head <= (rd_tag_head == RD_TAG_DEPTH-1) ? {RD_TAG_AWIDTH{1'b0}} : rd_tag_head + 5'd1;
+                end
+            end
+            if (c0_ddr4_app_rd_data_valid) begin
+                if (rd_tag_count == 0) begin
+                    rd_tag_underflow <= 1'b1;  // sticky -- should never happen
+                end else begin
+                    rd_tag_tail <= (rd_tag_tail == RD_TAG_DEPTH-1) ? {RD_TAG_AWIDTH{1'b0}} : rd_tag_tail + 5'd1;
+                end
+            end
+            case ({read_retiring && (rd_tag_count != RD_TAG_DEPTH),
+                   c0_ddr4_app_rd_data_valid && (rd_tag_count != 0)})
+                2'b10:   rd_tag_count <= rd_tag_count + 6'd1;
+                2'b01:   rd_tag_count <= rd_tag_count - 6'd1;
+                default: rd_tag_count <= rd_tag_count;   // 00 (idle) or 11 (push+pop cancel out)
+            endcase
         end
     end
 
@@ -1708,7 +1784,16 @@ module PanoramaBase_DdrBlackFrame(
         .probe21 (c0_ddr4_app_rd_data[63:0]),
         .probe22 (c0_ddr4_app_rd_data[511:448]),
         .probe23 (beat_fifo_dout[63:0]),
-        .probe24 (beat_fifo_dout[511:448])
+        .probe24 (beat_fifo_dout[511:448]),
+        // Keepalive v2 visibility (docs/DDR_READ_CADENCE_VT_TRACKING_FIX_PLAN.md
+        // phase 0): added before re-attempting the fix so a next hardware
+        // failure shows WHY instead of just "black screen" -- directly
+        // distinguishes the two leading v1-regression hypotheses (flush
+        // interaction vs. tag-queue desync) rather than reasoning blind.
+        .probe25 ({rd_tag_overflow, rd_tag_underflow, keepalive_want, keepalive_launch,
+                   cmd_is_keepalive, rd_return_is_keepalive, frame_valid}),
+        .probe26 (read_gap_counter),
+        .probe27 (rd_tag_count)
     );
 
     //------------------------------------------------------------------------

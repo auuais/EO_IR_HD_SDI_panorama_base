@@ -37,3 +37,8 @@ ip/dbg_ila_0/*
 # Raw ILA hardware capture dumps (large, regeneratable via
 # scripts/codex_ila_capture*.tcl); findings summarized in the plan doc.
 ila_capture_*.csv
+
+# Raw USB3 grabber frame captures (large PNGs, regeneratable via the
+# capture scripts referenced in the plan docs); findings/numbers summarized
+# in the plan doc, raw images kept local only.
+captures/
