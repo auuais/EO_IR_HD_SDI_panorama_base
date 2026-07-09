@@ -6,7 +6,7 @@
 //   IR camera  --(cam pclk)-->  per-camera BRAM frame buffer
 //        |                          | frame_pulse (in ui_clk domain)
 //        v                          v
-//   ui_clk COPY: BRAM -> DDR write-bank, 10240 x 512-bit bursts.
+//   ui_clk COPY: BRAM -> DDR write-bank, then guarded 16-pixel DDR app beats.
 //        on completion: pending_bank = write-bank; flip write-bank.
 //        v
 //   ui_clk SCAN: at each HD frame boundary adopt the pending bank as the
@@ -89,10 +89,10 @@ module PanoramaBase_DdrBlackFrame(
     output wire [1:0]  c0_ddr4_ba,
     output wire [0:0]  c0_ddr4_cke,
     output wire [0:0]  c0_ddr4_cs_n,
-    inout  wire [7:0]  c0_ddr4_dm_dbi_n,
-    inout  wire [63:0] c0_ddr4_dq,
-    inout  wire [7:0]  c0_ddr4_dqs_c,
-    inout  wire [7:0]  c0_ddr4_dqs_t,
+    inout  wire [5:0]  c0_ddr4_dm_dbi_n,
+    inout  wire [47:0] c0_ddr4_dq,
+    inout  wire [5:0]  c0_ddr4_dqs_c,
+    inout  wire [5:0]  c0_ddr4_dqs_t,
     output wire [0:0]  c0_ddr4_odt,
     output wire [0:0]  c0_ddr4_bg,
     output wire        c0_ddr4_reset_n,
@@ -161,11 +161,25 @@ module PanoramaBase_DdrBlackFrame(
                                    (SRC_SEL == SRC_EO0)    ? EO0_Y_OFF    :
                                    (SRC_SEL == SRC_EO0RAW) ? EO0RAW_Y_OFF : RAMP_Y_OFF;
 
+    localparam integer DDR_APP_DATA_W  = 384;              // x48 DDR4 UI: 48 DQ * BL8
+    localparam integer DDR_APP_MASK_W  = DDR_APP_DATA_W / 8;
+    // Hardware captures show that one complete x16 component contribution
+    // (128 bits per BL8) is corrupt: 8/32 pixels at x64 and the same 8/24
+    // pixels at x48. In the x48 lane map, the logical top 128 app-data bits
+    // still use original physical byte lanes 6/7, locating the fault on that
+    // x16 device/interface. Keep all source pixels in the clean low 256 bits
+    // and leave app_data[383:256] unused.
+    // This is lossless; no image data is stored in the failing component.
+    localparam integer DDR_GUARD_OFFSET_BITS = 0;
+    localparam integer DDR_PAYLOAD_BITS      = 256;
+    localparam integer PIXELS_PER_BEAT       = DDR_PAYLOAD_BITS / 16;
+    localparam [5:0]   PIXELS_PER_BEAT_COUNT = PIXELS_PER_BEAT;
+    localparam [5:0]   PIXELS_PER_BEAT_LAST  = PIXELS_PER_BEAT - 1;
     localparam [20:0]  FRAME_PIXELS  = SRC_W * SRC_H;      // 1,843,200 (EO) / 327,680 (ramp) / 2,073,600 (EO0RAW)
-    localparam [16:0]  BEATS_TOTAL   = FRAME_PIXELS / 32;  // 57,600 (EO) / 10,240 (ramp) / 64,800 (EO0RAW)
-    localparam [28:0]  ADDR_STRIDE   = 29'd8;              // app_addr units per 512-bit beat
+    localparam [16:0]  BEATS_TOTAL   = FRAME_PIXELS / PIXELS_PER_BEAT; // 115,200 (EO) / 20,480 (ramp) / 19,200 (EO0) / 129,600 (EO0RAW)
+    localparam [28:0]  ADDR_STRIDE   = 29'd8;              // app_addr units per BL8 beat
     localparam [28:0]  BANK0_BASE    = 29'd0;
-    localparam [28:0]  BANK1_BASE    = BEATS_TOTAL * ADDR_STRIDE; // 460,800 (EO) / 81,920 (ramp)
+    localparam [28:0]  BANK1_BASE    = BEATS_TOTAL * ADDR_STRIDE; // 921,600 (EO) / 163,840 (ramp) / 153,600 (EO0) / 1,036,800 (EO0RAW)
     // 2026-07-07: tried temporarily dropping this to 4 (see
     // docs/DDR_EO_PANORAMA_FIX_PLAN.md section 17) to test whether the
     // ILA-confirmed first-64-bit-chunk-of-every-read-burst corruption was
@@ -191,7 +205,8 @@ module PanoramaBase_DdrBlackFrame(
     // chasing the exact refresh timing.
     localparam [9:0]   KEEPALIVE_THRESHOLD = 10'd60;
     localparam [15:0]  BLACK_PIXEL   = 16'h1080;     // Y=0x10, C=0x80 (neutral)
-    localparam [511:0] BLACK_BURST   = {32{BLACK_PIXEL}};
+    localparam [DDR_APP_DATA_W-1:0] BLACK_BURST =
+        {128'd0, {PIXELS_PER_BEAT{BLACK_PIXEL}}};
 
     // DIAGNOSTIC BISECTION (SRC_SEL==SRC_RAMP builds only): when 1, the copy
     // writes a known raster ramp (luma = pixel_index[7:0]) into DDR instead of
@@ -236,9 +251,9 @@ module PanoramaBase_DdrBlackFrame(
     wire         c0_ddr4_app_wdf_rdy;
     wire [28:0]  c0_ddr4_app_addr;
     wire [2:0]   c0_ddr4_app_cmd;
-    wire [511:0] c0_ddr4_app_wdf_data;
-    wire [63:0]  c0_ddr4_app_wdf_mask;
-    wire [511:0] c0_ddr4_app_rd_data;
+    wire [DDR_APP_DATA_W-1:0] c0_ddr4_app_wdf_data;
+    wire [DDR_APP_MASK_W-1:0] c0_ddr4_app_wdf_mask;
+    wire [DDR_APP_DATA_W-1:0] c0_ddr4_app_rd_data;
 
     assign init_calib_complete_o = c0_init_calib_complete;
 
@@ -260,21 +275,27 @@ module PanoramaBase_DdrBlackFrame(
                                     // not real scan data
     reg  [28:0]  cmd_addr_q;
     reg          wdf_pend;
-    reg  [511:0] wdf_data_q;
+    reg  [DDR_APP_DATA_W-1:0] wdf_data_q;
     reg          w_cmd_done;   // write command phase already accepted (sticky, write ops only)
     reg          w_wdf_done;   // write data phase already accepted (sticky, write ops only)
 
-    assign c0_ddr4_app_en       = cmd_pend;
+    wire write_cmd_pending = cmd_pend && !cmd_is_rd;
+    wire app_en_held       = cmd_pend &&
+                             (cmd_is_rd || !wdf_pend || w_wdf_done || c0_ddr4_app_wdf_rdy);
+    wire app_wdf_wren_held = wdf_pend &&
+                             (!write_cmd_pending || w_cmd_done || c0_ddr4_app_rdy);
+
+    assign c0_ddr4_app_en       = app_en_held;
     assign c0_ddr4_app_hi_pri   = 1'b0;
     assign c0_ddr4_app_cmd      = cmd_is_rd ? 3'b001 : 3'b000;
     assign c0_ddr4_app_addr     = cmd_addr_q;
-    assign c0_ddr4_app_wdf_wren = wdf_pend;
-    assign c0_ddr4_app_wdf_end  = wdf_pend;
+    assign c0_ddr4_app_wdf_wren = app_wdf_wren_held;
+    assign c0_ddr4_app_wdf_end  = app_wdf_wren_held;
     assign c0_ddr4_app_wdf_data = wdf_pend ? wdf_data_q : BLACK_BURST;
-    assign c0_ddr4_app_wdf_mask = 64'd0;
+    assign c0_ddr4_app_wdf_mask = {DDR_APP_MASK_W{1'b0}};
 
-    wire cmd_fire    = cmd_pend && c0_ddr4_app_rdy;
-    wire wdf_fire    = wdf_pend && c0_ddr4_app_wdf_rdy;
+    wire cmd_fire    = app_en_held && c0_ddr4_app_rdy;
+    wire wdf_fire    = app_wdf_wren_held && c0_ddr4_app_wdf_rdy;
     wire issue_busy  = cmd_pend || wdf_pend;
     wire read_retiring  = cmd_pend && cmd_is_rd && cmd_fire;
     wire write_retiring = issue_busy && !cmd_is_rd &&
@@ -383,9 +404,19 @@ module PanoramaBase_DdrBlackFrame(
         .injectdbiterr (1'b0)
     );
 
+    // Read-data/write-enable alignment fix (plan section 20): beat_fifo_wr_en
+    // is a registered pulse, only visible the cycle AFTER
+    // c0_ddr4_app_rd_data_valid was actually sampled true -- but beat_fifo's
+    // din was wired straight to the live c0_ddr4_app_rd_data bus with no
+    // latching, so the FIFO was capturing whatever the MIG happened to be
+    // driving one cycle LATER, not the word that was actually valid. Latch
+    // the data on the SAME cycle as the valid check, in lockstep with
+    // beat_fifo_wr_en, so both become visible together one cycle later.
+    reg [DDR_APP_DATA_W-1:0] rd_data_capture;
+
     wire         beat_fifo_prog_full;
     wire         beat_fifo_empty;
-    wire [511:0] beat_fifo_dout;
+    wire [DDR_APP_DATA_W-1:0] beat_fifo_dout;
     reg          beat_fifo_wr_en;
     reg          beat_fifo_rd_en;
     wire         beat_fifo_full;
@@ -402,13 +433,13 @@ module PanoramaBase_DdrBlackFrame(
         .PROG_EMPTY_THRESH   (8),
         .PROG_FULL_THRESH    (64),
         .RD_DATA_COUNT_WIDTH (7),
-        .READ_DATA_WIDTH     (512),
+        .READ_DATA_WIDTH     (DDR_APP_DATA_W),
         .READ_MODE           ("fwft"),
         .SIM_ASSERT_CHK      (0),
         .USE_ADV_FEATURES    ("0303"),
         .WAKEUP_TIME         (0),
         .WR_DATA_COUNT_WIDTH (7),
-        .WRITE_DATA_WIDTH    (512)
+        .WRITE_DATA_WIDTH    (DDR_APP_DATA_W)
     ) u_beat_fifo (
         .rst           (ui_rst),
         .wr_clk        (c0_ddr4_ui_clk),
@@ -529,7 +560,7 @@ module PanoramaBase_DdrBlackFrame(
     reg        fb_write_pending;
     reg [5:0]  fb_pack_count;
     reg [16:0] fb_burst_count;
-    reg [511:0] fb_pack_buf;
+    reg [DDR_APP_DATA_W-1:0] fb_pack_buf;
     reg [28:0] wr_addr;
 
     // ping-pong bank bookkeeping
@@ -582,21 +613,12 @@ module PanoramaBase_DdrBlackFrame(
     // read-before-pop semantics, not FWFT).
     wire rd_return_is_keepalive = rd_tag_mem[rd_tag_tail];
 
-    // Read-data/write-enable alignment fix (plan section 20): beat_fifo_wr_en
-    // is a registered pulse, only visible the cycle AFTER
-    // c0_ddr4_app_rd_data_valid was actually sampled true -- but beat_fifo's
-    // din was wired straight to the live c0_ddr4_app_rd_data bus with no
-    // latching, so the FIFO was capturing whatever the MIG happened to be
-    // driving one cycle LATER, not the word that was actually valid. Latch
-    // the data on the SAME cycle as the valid check, in lockstep with
-    // beat_fifo_wr_en, so both become visible together one cycle later.
-    reg [511:0] rd_data_capture;
-
     // frame-boundary flush/resync: see flush_active state machine below
     reg        flush_active;
+    reg        flush_commit_pending;
 
     // beat_fifo -> pix_fifo unpack
-    reg [511:0] unpack_shift;
+    reg [DDR_APP_DATA_W-1:0] unpack_shift;
     reg [5:0]   unpack_count;
 
     // renderer frame-boundary pulse, synchronized into ui_clk
@@ -1397,7 +1419,7 @@ module PanoramaBase_DdrBlackFrame(
             fb_write_pending <= 1'b0;
             fb_pack_count    <= 6'd0;
             fb_burst_count   <= 17'd0;
-            fb_pack_buf      <= 512'd0;
+            fb_pack_buf      <= {DDR_APP_DATA_W{1'b0}};
             wr_addr          <= BANK0_BASE;
             copy_active      <= 1'b0;
             ir_sel_latched   <= 3'd0;
@@ -1416,13 +1438,14 @@ module PanoramaBase_DdrBlackFrame(
             dbg_beat_overflow<= 1'b0;
             dbg_cmd_retry_seen <= 1'b0;
             scan_active      <= 1'b0;
-            rd_data_capture  <= 512'd0;
+            rd_data_capture  <= {DDR_APP_DATA_W{1'b0}};
             read_gap_counter <= 10'd0;
             flush_active     <= 1'b0;
+            flush_commit_pending <= 1'b0;
             rd_addr          <= BANK0_BASE;
             rd_issue_count   <= 17'd0;
             outstanding      <= 7'd0;
-            unpack_shift     <= 512'd0;
+            unpack_shift     <= {DDR_APP_DATA_W{1'b0}};
             unpack_count     <= 6'd0;
             ftog_meta        <= 1'b0;
             ftog_sync        <= 1'b0;
@@ -1441,20 +1464,25 @@ module PanoramaBase_DdrBlackFrame(
             outstanding_next = outstanding;
 
             //----------------------------------------------------------------
-            // beat_fifo -> 32x16b unpack -> pix_fifo.  Suspended during a
+            // beat_fifo -> 16x16b guarded-payload unpack -> pix_fifo.
+            // The high 128-bit failing-component region is never rendered.
+            // Suspended during a
             // frame-boundary flush (stale beats are drained and discarded by
             // the third branch instead of being unpacked into new pixels).
             //----------------------------------------------------------------
             if (!flush_active && (unpack_count != 0) && !pix_fifo_full && !pix_fifo_wr_rst_busy) begin
                 pix_fifo_wr_en   <= 1'b1;
                 pix_fifo_wr_data <= unpack_shift[15:0];
-                unpack_shift     <= {16'd0, unpack_shift[511:16]};
+                unpack_shift     <= {16'd0, unpack_shift[DDR_APP_DATA_W-1:16]};
                 unpack_count     <= unpack_count - 6'd1;
                 dbg_pixwrite_seen<= 1'b1;
             end else if (!flush_active && !beat_fifo_empty && !pix_fifo_prog_full && !pix_fifo_wr_rst_busy) begin
                 beat_fifo_rd_en   <= 1'b1;
-                unpack_shift      <= beat_fifo_dout;
-                unpack_count      <= 6'd32;
+                unpack_shift      <= {
+                    {(DDR_APP_DATA_W-DDR_PAYLOAD_BITS){1'b0}},
+                    beat_fifo_dout[DDR_GUARD_OFFSET_BITS +: DDR_PAYLOAD_BITS]
+                };
+                unpack_count      <= PIXELS_PER_BEAT_COUNT;
             end else if (flush_active && (outstanding == 7'd0) && !beat_fifo_empty) begin
                 beat_fifo_rd_en <= 1'b1;   // drain and discard stale beats
             end
@@ -1483,12 +1511,13 @@ module PanoramaBase_DdrBlackFrame(
             //----------------------------------------------------------------
             // Pack whatever the active source (RAMP/IR or EO panorama,
             // SRC_SEL-selected generate branch above) produces into the
-            // 512-bit burst buffer.  Source-agnostic: 32 packed 16-bit pixels
-            // per burst regardless of where they came from.
+            // DDR app beat buffer. Source-agnostic: 16 packed 16-bit pixels
+            // per burst in the clean low 256-bit region.
             //----------------------------------------------------------------
             if (copy_px_valid) begin
-                fb_pack_buf[{fb_pack_count, 4'b0000} +: 16] <= copy_px_data;
-                if (fb_pack_count == 6'd31)
+                fb_pack_buf[DDR_GUARD_OFFSET_BITS +
+                            {fb_pack_count, 4'b0000} +: 16] <= copy_px_data;
+                if (fb_pack_count == PIXELS_PER_BEAT_LAST)
                     fb_write_pending <= 1'b1;
                 else
                     fb_pack_count <= fb_pack_count + 6'd1;
@@ -1501,6 +1530,7 @@ module PanoramaBase_DdrBlackFrame(
                 copy_active   <= 1'b0;
                 scan_active   <= 1'b0;
                 flush_active  <= 1'b0;
+                flush_commit_pending <= 1'b0;
                 cmd_pend      <= 1'b0;
                 wdf_pend      <= 1'b0;
                 w_cmd_done    <= 1'b0;
@@ -1546,7 +1576,7 @@ module PanoramaBase_DdrBlackFrame(
                     fb_pack_count    <= 6'd0;
                     fb_burst_count   <= 17'd0;
                     fb_write_pending <= 1'b0;
-                    fb_pack_buf      <= 512'd0;
+                    fb_pack_buf      <= {DDR_APP_DATA_W{1'b0}};
                 end
 
                 if (fb_write_pending)
@@ -1564,15 +1594,19 @@ module PanoramaBase_DdrBlackFrame(
                 //------------------------------------------------------------
                 if (frame_edge) begin
                     if (flush_active) begin
-                        // still cleaning up from the previous edge; retry the
-                        // commit on the next frame_edge instead.
+                        // Still cleaning up from the previous edge; remember
+                        // that the renderer has already reset stream_started
+                        // and start the scan as soon as this flush completes.
+                        flush_commit_pending <= 1'b1;
                     end else if (scan_active || (outstanding != 7'd0) ||
                                  !beat_fifo_empty || (unpack_count != 6'd0)) begin
                         scan_active  <= 1'b0;
                         flush_active <= 1'b1;
-                        unpack_shift <= 512'd0;
+                        flush_commit_pending <= 1'b1;
+                        unpack_shift <= {DDR_APP_DATA_W{1'b0}};
                         unpack_count <= 6'd0;
                     end else begin
+                        flush_commit_pending <= 1'b0;
                         if (pending_valid) begin
                             rd_bank       <= pending_bank;
                             pending_valid <= 1'b0;
@@ -1586,7 +1620,7 @@ module PanoramaBase_DdrBlackFrame(
                             rd_issue_count  <= 17'd0;
                             outstanding_next = 7'd0;
                             unpack_count    <= 6'd0;
-                            unpack_shift    <= 512'd0;
+                            unpack_shift    <= {DDR_APP_DATA_W{1'b0}};
                         end
                     end
                 end
@@ -1597,6 +1631,24 @@ module PanoramaBase_DdrBlackFrame(
                 // drain branch above.
                 if (flush_active && (outstanding == 7'd0) && beat_fifo_empty) begin
                     flush_active <= 1'b0;
+                    if (flush_commit_pending) begin
+                        flush_commit_pending <= 1'b0;
+                        if (pending_valid) begin
+                            rd_bank       <= pending_bank;
+                            pending_valid <= 1'b0;
+                            frame_valid   <= 1'b1;
+                            rd_addr       <= pending_bank ? BANK1_BASE : BANK0_BASE;
+                        end else begin
+                            rd_addr       <= rd_bank_base;
+                        end
+                        if (frame_valid || pending_valid) begin
+                            scan_active     <= 1'b1;
+                            rd_issue_count  <= 17'd0;
+                            outstanding_next = 7'd0;
+                            unpack_count    <= 6'd0;
+                            unpack_shift    <= {DDR_APP_DATA_W{1'b0}};
+                        end
+                    end
                 end
 
                 //------------------------------------------------------------
@@ -1741,7 +1793,7 @@ module PanoramaBase_DdrBlackFrame(
     // but section 15's calibration margin dashboard showed byte0 (bits[7:0])
     // has perfectly ordinary margins -- ruling out a per-byte analog issue
     // and pointing instead at a specific time-slot/chunk within the BL8
-    // burst's 512-bit assembly. probe5/probe11/probe14 were widened from
+    // burst assembly. probe5/probe11/probe14 were widened from
     // 16-bit corners to full 64-bit corners to check whether bytes 2-7 at
     // the same chunk position as the already-known-bad byte0/1 are ALSO
     // wrong (time-slot theory) or clean (byte-specific theory survives).
@@ -1765,26 +1817,26 @@ module PanoramaBase_DdrBlackFrame(
         .probe2  (fb_pack_count),
         .probe3  (fb_write_pending),
         .probe4  (write_retiring),
-        .probe5  ({wdf_data_q[511:496], wdf_data_q[15:0]}),
+        .probe5  ({wdf_data_q[DDR_APP_DATA_W-1 -: 16], wdf_data_q[15:0]}),
         .probe6  (wr_addr[15:0]),
         .probe7  ({cmd_pend, cmd_is_rd, c0_ddr4_app_rdy, wdf_pend, c0_ddr4_app_wdf_rdy}),
         .probe8  (read_retiring),
         .probe9  (rd_addr[15:0]),
         .probe10 (c0_ddr4_app_rd_data_valid),
-        .probe11 ({c0_ddr4_app_rd_data[511:496], c0_ddr4_app_rd_data[15:0]}),
+        .probe11 ({c0_ddr4_app_rd_data[DDR_APP_DATA_W-1 -: 16], c0_ddr4_app_rd_data[15:0]}),
         .probe12 (outstanding),
         .probe13 ({beat_fifo_wr_en, beat_fifo_rd_en, beat_fifo_empty, beat_fifo_full}),
-        .probe14 ({beat_fifo_dout[511:496], beat_fifo_dout[15:0]}),
+        .probe14 ({beat_fifo_dout[DDR_APP_DATA_W-1 -: 16], beat_fifo_dout[15:0]}),
         .probe15 (unpack_count),
         .probe16 ({pix_fifo_wr_en, pix_fifo_wr_data}),
         .probe17 ({scan_active, copy_active, flush_active, frame_edge}),
         .probe18 ({dbg_beat_overflow, dbg_cmd_retry_seen}),
         .probe19 (wdf_data_q[63:0]),
-        .probe20 (wdf_data_q[511:448]),
+        .probe20 (dbg_bus[63:0]),
         .probe21 (c0_ddr4_app_rd_data[63:0]),
-        .probe22 (c0_ddr4_app_rd_data[511:448]),
-        .probe23 (beat_fifo_dout[63:0]),
-        .probe24 (beat_fifo_dout[511:448]),
+        .probe22 (dbg_bus[127:64]),
+        .probe23 (dbg_bus[191:128]),
+        .probe24 (dbg_bus[255:192]),
         // Keepalive v2 visibility (docs/DDR_READ_CADENCE_VT_TRACKING_FIX_PLAN.md
         // phase 0): added before re-attempting the fix so a next hardware
         // failure shows WHY instead of just "black screen" -- directly
