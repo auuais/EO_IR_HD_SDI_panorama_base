@@ -12,6 +12,11 @@ def frame_stats(frame):
     mean_bgr = frame.mean(axis=(0, 1))
     std_bgr = frame.std(axis=(0, 1))
     y = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    channel_spread = (
+        frame.max(axis=2).astype(np.int16) - frame.min(axis=2).astype(np.int16)
+    )
+    saturation = hsv[:, :, 1]
     y_mean = float(y.mean())
     y_std = float(y.std())
     return {
@@ -20,6 +25,11 @@ def frame_stats(frame):
         "std_bgr": [float(x) for x in std_bgr],
         "y_mean": y_mean,
         "y_std": y_std,
+        "mean_channel_spread": float(channel_spread.mean()),
+        "p95_channel_spread": float(np.percentile(channel_spread, 95)),
+        "mean_saturation": float(saturation.mean()),
+        "p95_saturation": float(np.percentile(saturation, 95)),
+        "saturated_gt20_fraction": float((saturation > 20).mean()),
         "is_uniform_diag": bool(y_std < 2.0),
     }
 
@@ -117,6 +127,13 @@ def main():
         "frames": len(frames),
         "uniform_diag_count": sum(1 for s in summaries if s["is_uniform_diag"]),
         "real_count": sum(1 for s in summaries if not s["is_uniform_diag"]),
+        "mean_channel_spread": float(
+            np.mean([s["mean_channel_spread"] for s in summaries])
+        ),
+        "mean_saturation": float(np.mean([s["mean_saturation"] for s in summaries])),
+        "mean_saturated_gt20_fraction": float(
+            np.mean([s["saturated_gt20_fraction"] for s in summaries])
+        ),
         "frame_summary": summaries,
     }
     (outdir / "capture_summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
@@ -148,6 +165,9 @@ def main():
         "frames": len(frames),
         "uniform_diag_count": summary["uniform_diag_count"],
         "real_count": summary["real_count"],
+        "mean_channel_spread": summary["mean_channel_spread"],
+        "mean_saturation": summary["mean_saturation"],
+        "mean_saturated_gt20_fraction": summary["mean_saturated_gt20_fraction"],
         "lag16_autocorr": analyses["16"]["lag_autocorr"],
         "lag24_autocorr": analyses["24"]["lag_autocorr"],
         "lag32_autocorr": analyses["32"]["lag_autocorr"],

@@ -3,10 +3,60 @@
 Date: 2026-07-08
 Project: `E:\Xylinx\EO_IR_HD_SDI_panorama_base`
 
-## RESOLVED UPDATE — 2026-07-09
+## RESOLVED UPDATE - 2026-07-09
 
 The dominant DDR striping failure is now isolated and fixed in hardware.
 Everything below this update is retained as historical investigation context.
+
+### YCbCr 4:2:2 color restoration
+
+The grayscale output was an intentional RTL substitution added during the
+earlier DDR investigation, not an SDI decoder requirement. All three EO
+source branches discarded the camera `COUT` byte and packed `8'h80` as
+neutral chroma.
+
+The EO pipeline was already structured for BT.1120 YCbCr 4:2:2:
+
+- Camera pixels are `{Y[7:0], C[7:0]}`, with `C` alternating Cb/Cr.
+- `EO1920x1080_Decimate3_FrameBuffer` stores both bytes.
+- Its horizontal decimator selects complete chroma pairs.
+- Each tile is 640 pixels wide and all horizontal offsets are even, so
+  chroma phase is preserved across the 3x2 panorama.
+- DDR stores the packed 16-bit `{Y,C}` pixels unchanged.
+- The renderer emits Y on the upper BT.1120 component and Cb/Cr on the lower
+  component, extending each 8-bit sample to 10 bits with two zero LSBs.
+
+The fix restores the original chroma byte in `g_src_eostk`, `g_src_eo0`, and
+`g_src_eo0raw`. The IR/ramp path remains intentionally grayscale with neutral
+chroma. No DDR address, payload-placement, or scheduler logic changed.
+
+Color build evidence:
+
+- Synthesis: `codex_vivado_synth_yuv422_20260709.log`
+  - 0 synthesis errors
+- Implementation: `codex_vivado_impl_yuv422_20260709.log`
+  - WNS `+0.494 ns`, 0 setup failures
+  - WHS `+0.010 ns`, 0 hold failures
+  - WPWS `+0.099 ns`, 0 pulse-width failures
+  - 0 failed, unrouted, or partially routed nets
+  - Bitstream completed with 0 critical warnings and 0 errors
+- Programming: `codex_program_yuv422_20260709.log`
+  - FPGA startup status reached `HIGH`
+
+Hardware evidence:
+
+- Renderer ILA: `ila_capture_renderer2.csv`
+  - 7,269 in-window samples
+  - `pix_empty=0`, `stream_started=1`, and `frame_valid_sync=1`
+  - 165 distinct luma values and 25 distinct chroma values
+  - C range 448..580 in 10-bit units; all component low two bits were zero
+- The running `PC_MCU_COM` application owned the physical `USB3 Video`
+  DirectShow device, so a second OpenCV process could not open it.
+- Its live USB preview showed all six panorama tiles in color at 30 FPS:
+  `captures/pc_mcu_com_yuv422_20260709_1836.png`
+- Preview-region measurements changed from the old exact-zero grayscale
+  baseline to mean channel spread `19.98`, p95 spread `63`, and mean HSV
+  saturation `112.84`.
 
 ### Root cause isolation
 

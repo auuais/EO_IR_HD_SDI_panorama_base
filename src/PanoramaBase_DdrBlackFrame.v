@@ -934,15 +934,12 @@ module PanoramaBase_DdrBlackFrame(
         // {Y[7:0],C[7:0]} form the shared pack buffer expects everywhere else
         // in this file, rather than modifying the proven donor module.
         wire        copyfifo_wr_en = eo_use_pipe[EO_READ_LATENCY-1];
-        // Y = real grayscale data, C = constant neutral chroma (0x80) --
-        // matches the renderer's own documented intent (see the {Y,C}
-        // comment ahead of hd_dout_r's window-content branch) and the
-        // proven-clean ramp source's packing. Previously packed a second
-        // real (varying) sensor byte into C, which a standards-compliant
-        // BT.1120 receiver decodes as actual chroma -- any real data there
-        // produces spurious, non-neutral color, worst at sharp transitions
-        // (plan section 20).
-        wire [15:0] copyfifo_din   = {eo_cur_pixel[19:12], 8'h80};
+        // Packed YCbCr 4:2:2: one luma byte and the camera's alternating
+        // Cb/Cr byte per pixel. The decimator selects complete chroma pairs,
+        // and every 640-pixel tile boundary is even, so Cb/Cr phase remains
+        // aligned across the 3x2 panorama.
+        wire [15:0] copyfifo_din   = {eo_cur_pixel[19:12],
+                                      eo_cur_pixel[9:2]};
 
         always @(posedge rd_clk) begin
             if (!rst_n || !copy_active_rd) begin
@@ -1151,9 +1148,9 @@ module PanoramaBase_DdrBlackFrame(
                 eo_use_pipe <= {eo_use_pipe[EO_READ_LATENCY-2:0], copy_issue};
         end
         wire        copyfifo_wr_en = eo_use_pipe[EO_READ_LATENCY-1];
-        // Y=real grayscale data, C=constant neutral chroma -- see plan
-        // section 20 / the g_src_eostk packing comment above.
-        wire [15:0] copyfifo_din   = {eo0_rd_pixel_solo[19:12], 8'h80};
+        // Preserve the camera's alternating Cb/Cr byte for YCbCr 4:2:2.
+        wire [15:0] copyfifo_din   = {eo0_rd_pixel_solo[19:12],
+                                      eo0_rd_pixel_solo[9:2]};
 
         always @(posedge rd_clk) begin
             if (!rst_n || !copy_active_rd) begin
@@ -1282,9 +1279,9 @@ module PanoramaBase_DdrBlackFrame(
 
         wire        eo0_wr_frame_active = ~eo0_wr_vsync;
         wire        eo0_wr_sample_now   = eo0_wr_frame_active && eo0_wr_hsync && !copyfifo_full;
-        // Y=real grayscale data, C=constant neutral chroma -- see plan
-        // section 20 / the g_src_eostk packing comment above.
-        wire [15:0] eo0_wr_pixel_packed = {eo0_wr_pixel[19:12], 8'h80};
+        // Preserve the camera's alternating Cb/Cr byte for YCbCr 4:2:2.
+        wire [15:0] eo0_wr_pixel_packed = {eo0_wr_pixel[19:12],
+                                           eo0_wr_pixel[9:2]};
 
         // Sticky: camera produced an active pixel while the CDC FIFO was
         // full -- should never happen given the bandwidth headroom above;
@@ -2059,7 +2056,8 @@ module PanoramaBase_HdDdrRenderer #(
                 // missed. Does not gate on cur_inside_window on purpose.
                 hd_dout_r <= {10'd512, 10'd128};
             end else if (cur_inside_window && frame_valid_sync && stream_started && !pix_empty) begin
-                // {Y[9:0], C[9:0]} : grayscale luma, neutral chroma (C byte = 0x80)
+                // BT.1120 YCbCr 4:2:2: Y on the upper component and the
+                // alternating Cb/Cr sample on the lower component.
                 hd_dout_r <= {{pix_dout[15:8], 2'b00}, {pix_dout[7:0], 2'b00}};
                 pix_rd_en <= 1'b1;
             end else if (cur_inside_window && frame_valid_sync && !stream_started) begin
